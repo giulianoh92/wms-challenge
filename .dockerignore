@@ -1,0 +1,53 @@
+# Build outputs
+build/
+.gradle/
+*.jar
+*.war
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Version control
+.git/
+.gitignore
+
+# Documentation
+*.md
+HELP.md
+
+# Logs
+*.log
+logs/
+
+# Runtime files
+*.pid
+*.tmp
+*.temp
+
+# Test outputs
+test-results/
+.coverage
+
+# Node modules (if any)
+node_modules/
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Other build tools
+target/
+out/
