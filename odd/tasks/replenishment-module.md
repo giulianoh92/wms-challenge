@@ -63,7 +63,7 @@ multi-warehouse, order picking, procurement, relational persistence).
   `domain/model/ReplenishmentRule.java`, ports, `ReplenishmentRuleDomainService.java`,
   `InMemoryReplenishmentRuleRepository.java`, `ReplenishmentRuleController.java`, `api/dto/rule/*`.
 
-- [ ] **T5 — Seeder**
+- [x] **T5 — Seeder** — commit `2dbb6dc`
   §7 seed dataset, D14 (seed never produces a `StockMove`), AD-08. Depends on T1, T2/T3, T4.
   `infra/config/WarehouseSeeder.java` (`CommandLineRunner`), sequenced `LocationService` →
   `ReplenishmentRuleService` → `StockService.loadStock`. No new domain logic — verify by booting the app
@@ -125,6 +125,16 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   `ReplenishmentRuleControllerIntegrationTest` (5, new); T1/T2/T3/`User` unaffected. Read
   `ReplenishmentRuleDomainService`, `ReplenishmentRule`, and the `DomainConfiguration`/`LocationRepository`
   diffs myself; no defects found.
+- **T5** (`2dbb6dc`): `./gradlew clean test` — BUILD SUCCESSFUL, 17 actionable tasks executed. 49 tests
+  total, 0 failures/errors: domain module 25 (confirmed via JUnit XML —
+  `LocationDomainServiceTest` 3, `ReplenishmentRuleDomainServiceTest` 6, `StockDomainServiceTest` 16), root
+  module 24 (including the 4 new `WarehouseSeederIntegrationTest`). Read `WarehouseSeeder.java` and
+  `WarehouseSeederIntegrationTest.java` in full; cross-checked the seeded dataset against `docs/SRS.md` §7
+  line by line (locations, rule thresholds, stock quantities) — exact match. Read the complete `git diff` for
+  all three modified integration test files; every change is a mechanical fixture-code rename to avoid
+  collision with the seeded codes, plus one legitimate assertion widening (`hasSize(1)`→`hasSize(6)`+
+  `hasItem` in `getAllLocations_ShouldReturnEveryCreatedLocation`, required since the seeder now always
+  contributes 5 locations before any test-created one). No defects found.
 
 - 2026-09-20: T2 delegated and reviewed clean — no defects found this time (writer correctly extended
   `ReplenishmentExceptionHandler`'s `assignableTypes` and `DomainConfiguration` additively, matched T1's
@@ -154,6 +164,14 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   constructor params; the writer's version matches the real convention, my instruction was wrong on this
   detail. Committed as `5fce5d1`.
 
+- 2026-09-20: T5 delegated and reviewed clean. Making the seeder unconditional (no profile gating, per
+  AD-08) forced 14 pre-existing tests to break, since their fixtures reused now-seeded codes (`PICK-01`,
+  `RSV-01`, etc.), surfacing as `409 Conflict` or inflated list-size assertions. The writer fixed all 14 by
+  renaming fixtures to non-seed identifiers (`PICK-91/92/94/95`, `RSV-91/94/95`, `SKU-910`) and widened one
+  assertion (`getAllLocations_ShouldReturnEveryCreatedLocation`) to account for the 5 seeded locations always
+  being present. Verified the full diff across all three affected test files is purely mechanical — no test
+  logic removed or weakened beyond the one legitimate, justified assertion change. Committed as `2dbb6dc`.
+
 ## Next Step
 
-Start T5 (Seeder), delegated to a bounded writer.
+Start T6 (ReplenishmentTask: evaluate/generate + list), delegated to a bounded writer.
