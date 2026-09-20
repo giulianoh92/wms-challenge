@@ -45,7 +45,7 @@ multi-warehouse, order picking, procurement, relational persistence).
   `infra/adapter/inbound/web/LocationController.java` + mapper, `infra/config/ReplenishmentExceptionHandler.java`,
   `api/dto/location/*`, `DomainConfiguration` wiring, domain unit tests, one MockMvc integration test.
 
-- [ ] **T2 — InventoryItem: load and query stock**
+- [x] **T2 — InventoryItem: load and query stock** — commit `8923385`
   FR-STK-01/02. Depends on T1. Files: `domain/model/InventoryItem.java`,
   `domain/port/{inbound,outbound}/... Stock/Inventory...`, `domain/service/StockDomainService.java`
   (partial: `loadStock`, `queryStock`), `InMemoryInventoryRepository.java`, `StockController.java`
@@ -113,7 +113,19 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   lifecycle isn't authorized, so treated as unassessable → high tier, satisfied via manual independent
   review: read every new domain file, reviewed the full diff (`git diff --stat`, `git diff` on the modified
   file), found and fixed the scoping defect above.
+- **T2** (`8923385`): `./gradlew test` — BUILD SUCCESSFUL, 18/18 tests green (`StockDomainServiceTest` 6/6,
+  `StockControllerIntegrationTest` 5/5, T1 and `User` tests unaffected, 7/7 unchanged). Re-ran myself after
+  reading every new file; no defects found, no fix needed this round.
+
+- 2026-09-20: T2 delegated and reviewed clean — no defects found this time (writer correctly extended
+  `ReplenishmentExceptionHandler`'s `assignableTypes` and `DomainConfiguration` additively, matched T1's
+  style throughout). `StockService.query(String sku, String location)` chosen over `Optional<String>`
+  parameters — nullable `String` mirrors `@RequestParam(required = false)` directly, no unwrap ceremony;
+  AND-filter composition lives in `StockDomainService`, not the repository. `POST /stock` returns `200` (not
+  `201` like `POST /locations`) — deliberate, since it's upsert/set semantics (D8), not pure creation.
+  Committed as `8923385`.
 
 ## Next Step
 
-Start T2 (InventoryItem: load and query stock), delegated to a bounded writer, TDD red→green→refactor.
+Start T3 (StockMove: atomic move + history), delegated to a bounded writer — this is the task that
+introduces the AD-02 coarse-grained lock, needs a concurrency test, not just a sequential one.
