@@ -10,7 +10,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tenoro.app.api.dto.ErrorResponse;
 import io.tenoro.app.api.dto.stock.InventoryItemResponse;
 import io.tenoro.app.api.dto.stock.LoadStockRequest;
+import io.tenoro.app.api.dto.stock.MoveStockRequest;
+import io.tenoro.app.api.dto.stock.StockMoveResponse;
 import io.tenoro.app.domain.model.InventoryItem;
+import io.tenoro.app.domain.model.StockMove;
 import io.tenoro.app.domain.port.inbound.StockService;
 import io.tenoro.app.infra.adapter.inbound.web.mappers.StockResponseMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +88,65 @@ public class StockController {
         @RequestParam(required = false) String location
     ) {
         List<InventoryItemResponse> responses = stockService.query(sku, location).stream()
+                .map(StockResponseMapper::fromDomain)
+                .toList();
+        return ResponseEntity.ok(responses);
+    }
+
+    @Operation(summary = "Move stock", description = "Moves a quantity of a SKU from one location to another, atomically, recording a StockMove (relatedTaskId is null for a direct move)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Stock moved successfully",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = StockMoveResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid input data (e.g. quantity <= 0, from equals to, blank sku/location)",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "404", description = "The source or destination location does not exist",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "409", description = "Insufficient stock at the source location",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/move")
+    public ResponseEntity<StockMoveResponse> moveStock(
+        @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "Stock move details",
+            required = true,
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = MoveStockRequest.class)
+            )
+        )
+        @RequestBody MoveStockRequest request
+    ) {
+        StockMove move = stockService.moveStock(request.getSku(), request.getFrom(), request.getTo(),
+                request.getQuantity(), null);
+        return ResponseEntity.ok(StockResponseMapper.fromDomain(move));
+    }
+
+    @Operation(summary = "Query stock move history", description = "Retrieves the StockMove history, most-recent-first, optionally filtered by sku, location (matching fromLocation or toLocation) and relatedTaskId")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Stock move history retrieved successfully",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = StockMoveResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/moves")
+    public ResponseEntity<List<StockMoveResponse>> getStockMoves(
+        @Parameter(description = "Filter by SKU")
+        @RequestParam(required = false) String sku,
+        @Parameter(description = "Filter by location (matches fromLocation or toLocation)")
+        @RequestParam(required = false) String location,
+        @Parameter(description = "Filter by related task id")
+        @RequestParam(required = false) String relatedTaskId
+    ) {
+        List<StockMoveResponse> responses = stockService.listMoves(sku, location, relatedTaskId).stream()
                 .map(StockResponseMapper::fromDomain)
                 .toList();
         return ResponseEntity.ok(responses);

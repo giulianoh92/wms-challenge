@@ -5,6 +5,7 @@ import io.tenoro.app.domain.port.inbound.StockService;
 import io.tenoro.app.domain.port.inbound.UserService;
 import io.tenoro.app.domain.port.outbound.InventoryRepository;
 import io.tenoro.app.domain.port.outbound.LocationRepository;
+import io.tenoro.app.domain.port.outbound.StockMoveRepository;
 import io.tenoro.app.domain.port.outbound.UserRepository;
 import io.tenoro.app.domain.service.LocationDomainService;
 import io.tenoro.app.domain.service.StockDomainService;
@@ -26,7 +27,8 @@ public class DomainConfiguration {
     }
 
     @Bean
-    public StockService stockService(InventoryRepository inventoryRepository, LocationRepository locationRepository) {
-        return new StockDomainService(inventoryRepository, locationRepository);
+    public StockService stockService(InventoryRepository inventoryRepository, LocationRepository locationRepository,
+                                      StockMoveRepository stockMoveRepository) {
+        return new StockDomainService(inventoryRepository, locationRepository, stockMoveRepository);
     }
 }

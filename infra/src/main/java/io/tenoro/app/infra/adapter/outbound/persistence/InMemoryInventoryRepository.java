@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -36,6 +37,11 @@ public class InMemoryInventoryRepository implements InventoryRepository {
         return items.values().stream()
                 .filter(item -> item.getLocationCode().equals(locationCode))
                 .toList();
+    }
+
+    @Override
+    public Optional<InventoryItem> findBySkuAndLocationCode(String sku, String locationCode) {
+        return Optional.ofNullable(items.get(key(sku, locationCode)));
     }
 
     @Override

@@ -3,6 +3,7 @@ package io.tenoro.app.domain.port.outbound;
 import io.tenoro.app.domain.model.InventoryItem;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Outbound port for InventoryItem persistence operations.
@@ -36,6 +37,15 @@ public interface InventoryRepository {
      * @return the matching inventory items, empty if none
      */
     List<InventoryItem> findByLocationCode(String locationCode);
+
+    /**
+     * Retrieves the exact inventory item for a single (sku, locationCode) key, if any.
+     *
+     * @param sku          the SKU to look up
+     * @param locationCode the location code to look up
+     * @return the matching inventory item, or empty if no record exists for that exact key
+     */
+    Optional<InventoryItem> findBySkuAndLocationCode(String sku, String locationCode);
 
     /**
      * Retrieves every inventory item in the repository.
