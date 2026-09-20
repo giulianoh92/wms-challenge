@@ -71,6 +71,11 @@ class LocationDomainServiceTest {
         }
 
         @Override
+        public java.util.Optional<Location> findByCode(String code) {
+            return locations.stream().filter(location -> location.getCode().equals(code)).findFirst();
+        }
+
+        @Override
         public Location save(Location location) {
             locations.add(location);
             return location;

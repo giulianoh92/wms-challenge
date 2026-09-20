@@ -3,6 +3,7 @@ package io.tenoro.app.domain.port.outbound;
 import io.tenoro.app.domain.model.Location;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Outbound port for Location persistence operations.
@@ -16,6 +17,14 @@ public interface LocationRepository {
      * @return true if a location with this code exists, false otherwise
      */
     boolean existsByCode(String code);
+
+    /**
+     * Retrieves the location with the given code, if any.
+     *
+     * @param code the location's code
+     * @return the matching location, or empty if no location exists with this code
+     */
+    Optional<Location> findByCode(String code);
 
     /**
      * Saves a location to the repository.
