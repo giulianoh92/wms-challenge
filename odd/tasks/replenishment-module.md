@@ -58,7 +58,7 @@ multi-warehouse, order picking, procurement, relational persistence).
   `StockMoveRepository.java` (outbound port), `InMemoryStockMoveRepository.java`, `StockController.java`
   (`POST /stock/move`, `GET /stock/moves`), `api/dto/stock/{MoveStockRequest,StockMoveResponse}.java`.
 
-- [ ] **T4 — ReplenishmentRule**
+- [x] **T4 — ReplenishmentRule** — commit `5fce5d1`
   FR-RUL-01, BR-01–04. Depends on T1 (validates location exists and is `PICKING`). Files:
   `domain/model/ReplenishmentRule.java`, ports, `ReplenishmentRuleDomainService.java`,
   `InMemoryReplenishmentRuleRepository.java`, `ReplenishmentRuleController.java`, `api/dto/rule/*`.
@@ -120,6 +120,11 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   via JUnit XML report, including `moveStock_ShouldConserveQuantity_UnderConcurrentMoves` with 0
   failures/errors), `StockControllerIntegrationTest` 14/14, T1/T2/`User` tests unaffected. Independently
   re-ran the full suite myself (not just trusting the writer's report) and read every touched file.
+- **T4** (`5fce5d1`): `./gradlew clean test` — BUILD SUCCESSFUL, 17 actionable tasks executed. All tests
+  green including `ReplenishmentRuleDomainServiceTest` (6, new) and
+  `ReplenishmentRuleControllerIntegrationTest` (5, new); T1/T2/T3/`User` unaffected. Read
+  `ReplenishmentRuleDomainService`, `ReplenishmentRule`, and the `DomainConfiguration`/`LocationRepository`
+  diffs myself; no defects found.
 
 - 2026-09-20: T2 delegated and reviewed clean — no defects found this time (writer correctly extended
   `ReplenishmentExceptionHandler`'s `assignableTypes` and `DomainConfiguration` additively, matched T1's
@@ -139,6 +144,16 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   self-reported doing the "remove the lock, watch the concurrency test fail" sanity check before restoring
   it — a good practice I'll ask for again on any future concurrency-sensitive task. Committed as `79e7875`.
 
+- 2026-09-20: T4 delegated and reviewed clean — no logic defects. Writer correctly flagged and made two
+  reasoned deviations rather than following my instructions literally: (1) added `findByCode` to
+  `LocationRepository`, which forced a one-line mechanical addition to the `LocationRepository` fakes inside
+  `LocationDomainServiceTest`/`StockDomainServiceTest` just to keep those compiling — verified the diff is
+  exactly that one method each, nothing else changed; (2) did NOT add an explicit
+  `ReplenishmentRuleRepository` `@Bean` to `DomainConfiguration` (I'd asked for one) — verified against the
+  actual file that repositories are never manually beaned there, only `@Repository`-scanned and injected as
+  constructor params; the writer's version matches the real convention, my instruction was wrong on this
+  detail. Committed as `5fce5d1`.
+
 ## Next Step
 
-Start T4 (ReplenishmentRule), delegated to a bounded writer, TDD red→green→refactor.
+Start T5 (Seeder), delegated to a bounded writer.
