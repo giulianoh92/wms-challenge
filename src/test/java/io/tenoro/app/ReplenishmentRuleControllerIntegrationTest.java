@@ -55,10 +55,13 @@ class ReplenishmentRuleControllerIntegrationTest {
 
     @Test
     void createReplenishmentRule_ShouldReturnCreatedRule_WhenLocationIsPicking() throws Exception {
-        createLocation("PICK-01", "PICKING");
+        // A location code not present in the WarehouseSeeder dataset (docs/SRS.md §7), which is loaded
+        // unconditionally on every context boot (docs/ARCHITECTURE.md AD-08) — reusing PICK-01 here
+        // would fail at location creation with a 409, before this test's rule logic even runs.
+        createLocation("PICK-91", "PICKING");
 
         String requestBody = """
-                {"sku":"SKU-100","locationCode":"PICK-01","min":20,"max":100}
+                {"sku":"SKU-100","locationCode":"PICK-91","min":20,"max":100}
                 """;
 
         mockMvc.perform(post("/replenishment-rules")
@@ -67,7 +70,7 @@ class ReplenishmentRuleControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.sku", is("SKU-100")))
-                .andExpect(jsonPath("$.locationCode", is("PICK-01")))
+                .andExpect(jsonPath("$.locationCode", is("PICK-91")))
                 .andExpect(jsonPath("$.min", is(20)))
                 .andExpect(jsonPath("$.max", is(100)));
     }
@@ -89,10 +92,10 @@ class ReplenishmentRuleControllerIntegrationTest {
 
     @Test
     void createReplenishmentRule_ShouldReturnBadRequest_WhenLocationIsReserve() throws Exception {
-        createLocation("RSV-01", "RESERVE");
+        createLocation("RSV-91", "RESERVE");
 
         String requestBody = """
-                {"sku":"SKU-100","locationCode":"RSV-01","min":20,"max":100}
+                {"sku":"SKU-100","locationCode":"RSV-91","min":20,"max":100}
                 """;
 
         mockMvc.perform(post("/replenishment-rules")
@@ -106,10 +109,10 @@ class ReplenishmentRuleControllerIntegrationTest {
 
     @Test
     void createReplenishmentRule_ShouldReturnBadRequest_WhenMinIsGreaterThanMax() throws Exception {
-        createLocation("PICK-01", "PICKING");
+        createLocation("PICK-91", "PICKING");
 
         String requestBody = """
-                {"sku":"SKU-100","locationCode":"PICK-01","min":100,"max":20}
+                {"sku":"SKU-100","locationCode":"PICK-91","min":100,"max":20}
                 """;
 
         mockMvc.perform(post("/replenishment-rules")
@@ -123,10 +126,10 @@ class ReplenishmentRuleControllerIntegrationTest {
 
     @Test
     void createReplenishmentRule_ShouldReturnConflict_WhenRuleAlreadyExists() throws Exception {
-        createLocation("PICK-01", "PICKING");
+        createLocation("PICK-91", "PICKING");
 
         String requestBody = """
-                {"sku":"SKU-100","locationCode":"PICK-01","min":20,"max":100}
+                {"sku":"SKU-100","locationCode":"PICK-91","min":20,"max":100}
                 """;
 
         mockMvc.perform(post("/replenishment-rules")

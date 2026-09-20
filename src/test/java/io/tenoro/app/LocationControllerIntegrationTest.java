@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -46,8 +47,11 @@ class LocationControllerIntegrationTest {
 
     @Test
     void createLocation_ShouldReturnCreatedLocation() throws Exception {
+        // A code not present in the WarehouseSeeder dataset (docs/SRS.md §7), which is now loaded
+        // unconditionally on every context boot (docs/ARCHITECTURE.md AD-08) — reusing a seeded code
+        // here would turn this into a 409 conflict test instead of a creation test.
         String requestBody = """
-                {"code":"PICK-01","type":"PICKING"}
+                {"code":"PICK-91","type":"PICKING"}
                 """;
 
         mockMvc.perform(post("/locations")
@@ -55,14 +59,14 @@ class LocationControllerIntegrationTest {
                         .content(requestBody))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.code", is("PICK-01")))
+                .andExpect(jsonPath("$.code", is("PICK-91")))
                 .andExpect(jsonPath("$.type", is("PICKING")));
     }
 
     @Test
     void createLocation_ShouldReturnConflict_WhenCodeAlreadyExists() throws Exception {
         String requestBody = """
-                {"code":"RSV-01","type":"RESERVE"}
+                {"code":"RSV-91","type":"RESERVE"}
                 """;
 
         mockMvc.perform(post("/locations")
@@ -81,8 +85,11 @@ class LocationControllerIntegrationTest {
 
     @Test
     void getAllLocations_ShouldReturnEveryCreatedLocation() throws Exception {
+        // Every context boot loads the 5 WarehouseSeeder locations first (docs/ARCHITECTURE.md AD-08),
+        // so the full list is the 5 seeded ones plus this test's own — asserted by presence, not index,
+        // since InMemoryLocationRepository.findAll() (a ConcurrentHashMap) gives no ordering guarantee.
         String requestBody = """
-                {"code":"PICK-02","type":"PICKING"}
+                {"code":"PICK-92","type":"PICKING"}
                 """;
 
         mockMvc.perform(post("/locations")
@@ -94,8 +101,7 @@ class LocationControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].code", is("PICK-02")))
-                .andExpect(jsonPath("$[0].type", is("PICKING")));
+                .andExpect(jsonPath("$", hasSize(6)))
+                .andExpect(jsonPath("$[*].code", hasItem("PICK-92")));
     }
 }
