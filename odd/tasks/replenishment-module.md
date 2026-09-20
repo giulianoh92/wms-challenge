@@ -36,7 +36,7 @@ multi-warehouse, order picking, procurement, relational persistence).
 
 ## Tasks
 
-- [ ] **T1 — Location + error-handling scaffolding**
+- [x] **T1 — Location + error-handling scaffolding** — commit `04e1f44`
   FR-LOC-01/02. Establishes the AD-05 pattern every later controller reuses: `NotFoundException`,
   `ConflictException`, `ReplenishmentExceptionHandler` (`@RestControllerAdvice` scoped to the new
   controllers only). Files: `domain/model/Location.java`, `LocationType.java`, `domain/exception/*`,
@@ -95,12 +95,25 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
 
 - 2026-09-20: Branched `feature/replenishment-module` off `main`. Committed pending `CLAUDE.md`/`mise.toml`
   (chore), `docs/SRS.md` (docs), `docs/ARCHITECTURE.md` (docs) — all pre-existed uncommitted on `main`.
-  Task file created. No implementation started yet.
+  Task file created.
+- 2026-09-20: T1 delegated to a writer (TDD red→green→refactor, tests written first). On review, found the
+  writer's `ReplenishmentExceptionHandler` used `@RestControllerAdvice(basePackageClasses = ...)`, which
+  scopes by package, not by class — since `LocationController` shares a package with `UserController`, this
+  didn't actually achieve AD-05's "scoped to the new controllers" intent (it was inert today only because
+  `UserController` already self-handles every exception, not because of real isolation). Fixed to
+  `assignableTypes` for exact per-class scoping, re-ran the full suite, committed as `04e1f44`.
 
 ## Verification Evidence
 
-(none yet — filled in per task as work completes)
+- **T1** (`04e1f44`): `./gradlew test` — BUILD SUCCESSFUL, all tests green (`LocationDomainServiceTest`
+  3/3 domain-only, `LocationControllerIntegrationTest` 3/3 MockMvc, pre-existing `UserControllerIntegrationTest`
+  1/1 unaffected). Re-verified myself after the `assignableTypes` fix, not just from the writer's report.
+  `gentle-ai review assess` could not run standalone (requires the full `review status` inventory handshake
+  to declare untracked paths, which engages the native review lifecycle machinery) — RDD is off and that
+  lifecycle isn't authorized, so treated as unassessable → high tier, satisfied via manual independent
+  review: read every new domain file, reviewed the full diff (`git diff --stat`, `git diff` on the modified
+  file), found and fixed the scoping defect above.
 
 ## Next Step
 
-Start T1 (Location + error-handling scaffolding), delegated to a bounded writer, TDD red→green→refactor.
+Start T2 (InventoryItem: load and query stock), delegated to a bounded writer, TDD red→green→refactor.
