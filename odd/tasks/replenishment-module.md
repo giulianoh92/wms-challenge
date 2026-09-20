@@ -51,7 +51,7 @@ multi-warehouse, order picking, procurement, relational persistence).
   (partial: `loadStock`, `queryStock`), `InMemoryInventoryRepository.java`, `StockController.java`
   (partial), `api/dto/stock/{LoadStockRequest,InventoryItemResponse}.java`.
 
-- [ ] **T3 — StockMove: atomic move + history**
+- [x] **T3 — StockMove: atomic move + history** — commit `79e7875`
   FR-STK-03, FR-MOV-01, BR-05/06/10/11, AD-02, AD-07 (`CopyOnWriteArrayList`). Depends on T2. Adds the
   coarse-grained lock in `StockDomainService` covering **both** `loadStock` and `moveStock` (AD-02 —
   verify with a concurrency test, not just a sequential one). Files: `domain/model/StockMove.java`,
@@ -116,6 +116,10 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
 - **T2** (`8923385`): `./gradlew test` — BUILD SUCCESSFUL, 18/18 tests green (`StockDomainServiceTest` 6/6,
   `StockControllerIntegrationTest` 5/5, T1 and `User` tests unaffected, 7/7 unchanged). Re-ran myself after
   reading every new file; no defects found, no fix needed this round.
+- **T3** (`79e7875`): `./gradlew clean test` — BUILD SUCCESSFUL. `StockDomainServiceTest` 16/16 (confirmed
+  via JUnit XML report, including `moveStock_ShouldConserveQuantity_UnderConcurrentMoves` with 0
+  failures/errors), `StockControllerIntegrationTest` 14/14, T1/T2/`User` tests unaffected. Independently
+  re-ran the full suite myself (not just trusting the writer's report) and read every touched file.
 
 - 2026-09-20: T2 delegated and reviewed clean — no defects found this time (writer correctly extended
   `ReplenishmentExceptionHandler`'s `assignableTypes` and `DomainConfiguration` additively, matched T1's
@@ -125,7 +129,16 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   `201` like `POST /locations`) — deliberate, since it's upsert/set semantics (D8), not pure creation.
   Committed as `8923385`.
 
+- 2026-09-20: T3 delegated and reviewed — the architecturally critical task. Verified independently (not
+  just from the writer's report): read the full `StockDomainService.moveStock`/`loadStock` implementation,
+  confirmed both share the single `stockLock` monitor exactly as AD-02 requires; read the 20-thread/200-unit
+  concurrency test and confirmed via the JUnit XML report it actually ran and passed (0 failures); re-ran
+  `./gradlew clean test` myself, 17 actionable tasks executed, BUILD SUCCESSFUL. `git diff --stat` matched
+  the expected file list exactly — no scope creep. Writer added a `from != to` → 400 check not in my
+  original task description, verified it's directly required by SRS FR-STK-03 (not invented). Writer also
+  self-reported doing the "remove the lock, watch the concurrency test fail" sanity check before restoring
+  it — a good practice I'll ask for again on any future concurrency-sensitive task. Committed as `79e7875`.
+
 ## Next Step
 
-Start T3 (StockMove: atomic move + history), delegated to a bounded writer — this is the task that
-introduces the AD-02 coarse-grained lock, needs a concurrency test, not just a sequential one.
+Start T4 (ReplenishmentRule), delegated to a bounded writer, TDD red→green→refactor.
