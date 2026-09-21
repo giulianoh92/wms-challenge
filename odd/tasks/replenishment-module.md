@@ -75,7 +75,7 @@ multi-warehouse, order picking, procurement, relational persistence).
   ports, `ReplenishmentTaskDomainService.java` (partial), `InMemoryReplenishmentTaskRepository.java`,
   `ReplenishmentTaskController.java` (partial), `api/dto/task/*`.
 
-- [ ] **T7 — ReplenishmentTask: confirm + cancel**
+- [x] **T7 — ReplenishmentTask: confirm + cancel** — commit `4151a6b`
   FR-TSK-03/04, BR-07/08/09, AD-03 (`ReplenishmentTaskDomainService` composes `StockService.moveStock`).
   Depends on T6. Completes `ReplenishmentTaskController` and `ReplenishmentTaskDomainService`.
 
@@ -197,7 +197,32 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   `docs/SRS.md` §7 Nota (see Verification Evidence) — I verified the arithmetic myself before accepting the
   fix, rather than taking the writer's claim on trust. Committed as `77bd6b5` (feature) and `6807dc8`
   (docs correction).
+- **T7** (`4151a6b`): `./gradlew clean test` — BUILD SUCCESSFUL, 17 actionable tasks executed. 89 tests
+  total, 0 failures/errors: domain module 48 (`ReplenishmentTaskDomainServiceTest` 23, was 13 — 10 new
+  covering confirm/cancel; `LocationDomainServiceTest` 3, `ReplenishmentRuleDomainServiceTest` 6,
+  `StockDomainServiceTest` 16 unaffected), root module 41 (`ReplenishmentTaskControllerIntegrationTest`
+  17, was 10 — 7 new; all other classes unaffected). Confirmed all 72 pre-T7 tests still present and
+  green. Read the full diff of every touched file: `ReplenishmentTask.confirmed()/cancelled()` (pure,
+  BR-08 guard before any I/O), `ReplenishmentTaskDomainService.confirm()` (builds the confirmed instance
+  first, then calls `StockService.moveStock` with `relatedTaskId=task.getId()`, only saves on success —
+  verified the D6 test actually proves no partial debit and the task stays `OPEN` on a failed move),
+  `cancel()`, the `DomainConfiguration`/controller/repository diffs, and both test files in full. No
+  defects found.
+
+- 2026-09-20: T7 delegated and reviewed clean — no logic defects. Design matches AD-03 exactly:
+  `task.confirmed()` is called BEFORE `StockService.moveStock` (pure, no I/O, fails fast with 409 on a
+  non-OPEN task without ever attempting a move), and the repository is only updated to `CONFIRMED` after
+  the move succeeds — verified this actually holds under D6 (source stock drained between task creation
+  and confirmation) via both a domain test and a MockMvc test, both asserting the task remains `OPEN` and
+  no `StockMove`/inventory change occurred on the failed path. `relatedTaskId` correctly wired to the
+  task's own id (BR-09/BR-10). Writer reused the real `StockDomainService` (not a hand-rolled test double)
+  in the domain test's fakes specifically to avoid the atomicity logic drifting between test and
+  production — a good call I'd ask for again. One flagged deviation: changed the domain test's
+  `FakeReplenishmentTaskRepository.save()` from append-only to upsert-by-id, to match the real
+  `InMemoryReplenishmentTaskRepository`'s `Map.put` semantics — verified this doesn't affect any of the 13
+  pre-existing T6 tests in that file (none re-save the same id) and is required for `findById` to reflect
+  post-transition state. Committed as `4151a6b`.
 
 ## Next Step
 
-Start T7 (ReplenishmentTask: confirm + cancel), delegated to a bounded writer.
+Start T8 (README + end-to-end verification) — the final task.
