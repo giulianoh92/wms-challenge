@@ -201,8 +201,11 @@ de error más rica (§5.2): `400` / `404` / `409` de forma consistente en todos 
    genérico para "no encontrado" — ese patrón de `User` es demasiado amplio para mapearlo de forma segura en
    un manejador global (un `RuntimeException` inesperado terminaría reportado como `404` en vez de `500`).
 3. Se agrega `ReplenishmentExceptionHandler`, un `@RestControllerAdvice` acotado a los cuatro controllers
-   nuevos (`@RestControllerAdvice(basePackageClasses = {LocationController.class, ...})`), que mapea las
-   tres excepciones de arriba al `ErrorResponse` existente, más un catch-all a `500` como red de seguridad.
+   nuevos mediante `assignableTypes` (`@RestControllerAdvice(assignableTypes = {LocationController.class,
+   StockController.class, ReplenishmentRuleController.class, ReplenishmentTaskController.class})` —
+   deliberadamente `assignableTypes` y no `basePackageClasses`, para no atrapar por accidente a
+   `UserController` si algún día comparte paquete), que mapea las tres excepciones de arriba al
+   `ErrorResponse` existente, más un catch-all a `500` como red de seguridad.
 
 **Por qué desviarse de la convención de `User`**: con once endpoints y cinco tipos de error posibles, repetir
 `try/catch/finally` por método multiplica el riesgo de que un endpoint nuevo se olvide de mapear un caso
@@ -305,7 +308,8 @@ son más baratas y rápidas de correr (sin arrancar Spring), y el contrato HTTP 
 | FR-MOV-01 | `StockDomainService.listMoves()` + `InMemoryStockMoveRepository` (AD-07) |
 | BR-01..04 | Validación en constructor/mutador de `Location`/`ReplenishmentRule`, reforzada por el seeder pasando por los servicios (AD-08) |
 | BR-05, BR-06, BR-09, BR-10 | Lock único en `StockDomainService` (AD-02, AD-03) |
-| BR-07, BR-08 | Validación en `ReplenishmentTask` (constructor y método `confirm`/`cancel`) |
+| BR-07 | `ReplenishmentTaskDomainService.evaluate()` valida que `toLocation` sea `PICKING`; `selectReserveSources()` filtra orígenes por `RESERVE`. El constructor de `ReplenishmentTask` no lo valida — no tiene acceso al repositorio para resolver `Location.type` (ver su Javadoc) |
+| BR-08 | Validación en `ReplenishmentTask.confirmed()`/`cancelled()` (`ConflictException` si el estado no es `OPEN`) |
 | BR-11 | `StockMoveRepository` no expone ningún método de edición/borrado — solo `save` y `findAll` (AD-07) |
 | NFR-01 | Cuatro agregados, cuatro servicios (AD-01) |
 | NFR-02 | Pirámide de tests (AD-09) |
