@@ -69,7 +69,7 @@ multi-warehouse, order picking, procurement, relational persistence).
   `ReplenishmentRuleService` → `StockService.loadStock`. No new domain logic — verify by booting the app
   and checking `GET /locations`, `GET /stock`, rules via Swagger/curl.
 
-- [ ] **T6 — ReplenishmentTask: evaluate/generate + list**
+- [x] **T6 — ReplenishmentTask: evaluate/generate + list** — commit `77bd6b5` (+ docs fix `6807dc8`)
   FR-TSK-01/02, D1–D5, AD-04 (selection as a private method). Depends on T2, T3, T4, T5 (seed data used
   for manual verification). Files: `domain/model/ReplenishmentTask.java`, `ReplenishmentTaskStatus.java`,
   ports, `ReplenishmentTaskDomainService.java` (partial), `InMemoryReplenishmentTaskRepository.java`,
@@ -135,6 +135,19 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   collision with the seeded codes, plus one legitimate assertion widening (`hasSize(1)`→`hasSize(6)`+
   `hasItem` in `getAllLocations_ShouldReturnEveryCreatedLocation`, required since the seeder now always
   contributes 5 locations before any test-created one). No defects found.
+- **T6** (`77bd6b5`, docs fix `6807dc8`): `./gradlew clean test` — BUILD SUCCESSFUL, 17 actionable tasks
+  executed. 72 tests total, 0 failures/errors: domain module 38 (`LocationDomainServiceTest` 3,
+  `ReplenishmentRuleDomainServiceTest` 6, `ReplenishmentTaskDomainServiceTest` 13 new,
+  `StockDomainServiceTest` 16), root module 34 (`ReplenishmentTaskControllerIntegrationTest` 10 new,
+  `WarehouseSeederIntegrationTest` 4, plus all prior). Confirmed all 49 pre-T6 tests still present and
+  green, not just a bigger total. Read every new/modified file in full (`ReplenishmentTask`,
+  `ReplenishmentEvaluationResult`, `ReplenishmentTaskDomainService`, `ReplenishmentTaskController`,
+  `ReplenishmentTaskResponseMapper`, both repository ports/adapters, both test files, all
+  `DomainConfiguration`/`ReplenishmentExceptionHandler`/`ReplenishmentRuleRepository` diffs) — no logic
+  defects found. Found and fixed a real defect in my own `docs/SRS.md` §7 Nota (SKU-200/PICK-01 does not
+  exercise D3's zero-reserve branch as the note claimed; it short-circuits at D5 since stock=40>=min=10) —
+  caught by the writer while building the integration tests, verified independently against the seed
+  numbers myself before fixing.
 
 - 2026-09-20: T2 delegated and reviewed clean — no defects found this time (writer correctly extended
   `ReplenishmentExceptionHandler`'s `assignableTypes` and `DomainConfiguration` additively, matched T1's
@@ -172,6 +185,19 @@ rules covered by tests. Per `docs/SRS.md` §8 traceability table.
   being present. Verified the full diff across all three affected test files is purely mechanical — no test
   logic removed or weakened beyond the one legitimate, justified assertion change. Committed as `2dbb6dc`.
 
+- 2026-09-20: T6 delegated and reviewed clean — no logic defects. Confirmed the outbound-port extension
+  claim before trusting it: `ReplenishmentRuleRepository` genuinely lacked a `findBySkuAndLocationCode`
+  lookup (only `existsBySkuAndLocationCode`), same one-method-addition pattern as T4's `findByCode`. The
+  writer correctly kept `fromLocation`/`toLocation` RESERVE/PICKING type validation (BR-07) out of the
+  `ReplenishmentTask` constructor, in the domain service instead — the model has no repository access,
+  matching `StockMove`'s precedent of no cross-entity checks in its own constructor. Reserve-source
+  selection correctly isolated as a single private method (AD-04), greedy-descending (D2), verified against
+  the exact seeded SKU-100/PICK-01 numbers (RSV-01=60 then RSV-02=35) in both the domain unit test and the
+  integration test. The writer independently caught and correctly diagnosed a real error in my own
+  `docs/SRS.md` §7 Nota (see Verification Evidence) — I verified the arithmetic myself before accepting the
+  fix, rather than taking the writer's claim on trust. Committed as `77bd6b5` (feature) and `6807dc8`
+  (docs correction).
+
 ## Next Step
 
-Start T6 (ReplenishmentTask: evaluate/generate + list), delegated to a bounded writer.
+Start T7 (ReplenishmentTask: confirm + cancel), delegated to a bounded writer.
