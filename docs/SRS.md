@@ -422,8 +422,10 @@ Nota (relevante para D2/D3, conviene validarla una vez implementado): con esta s
 primero `RSV-01` con 60, luego `RSV-02` con las 35 restantes, según el orden de mayor a menor de D2).
 Evaluar `SKU-300` en `PICK-02` necesita `120 - 10 = 110`; reserva solo tiene `70` en `RSV-03` — un caso de
 reabasto parcial (D3), se espera exactamente una tarea de `70` unidades y `fullyReplenished=false`.
-`SKU-200` en `PICK-01` no tiene stock de `RESERVE` sembrado en absoluto, por lo que su evaluación es el caso
-de "ubicacionesReserva vacío" (D3/paso L del diagrama de flujo).
+`SKU-200` en `PICK-01` tiene `stock=40 >= min=10` — la evaluación corta en D5 ("no se necesita reabasto")
+antes de llegar siquiera a mirar reserva, sin importar que no tenga stock de `RESERVE` sembrado. El caso
+D3 de "ubicacionesReserva vacío" (paso L del diagrama de flujo) no está representado en la semilla; se
+prueba con datos ad hoc.
 
 Por D14, la carga del stock inicial por el seeder **no genera ningún `StockMove`**: es el estado de partida
 del sistema, no un movimiento entre dos ubicaciones. El historial (`GET /stock/moves`) arranca vacío
