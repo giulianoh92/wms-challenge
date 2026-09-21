@@ -52,7 +52,8 @@ SKU y una interfaz de usuario.
   aceptación autoritativos).
 - `../CLAUDE.md` — convenciones del código base verificadas (organización de módulos, manejo de errores,
   validación, testing).
-- `../README.MD` — cómo levantar la app y la feature de ejemplo `User` existente.
+- `../README.md` — cómo levantar la app, cargar el seed y probar el flujo completo (incluida la colección
+  de Postman).
 
 ### 1.5 Resumen del documento
 
