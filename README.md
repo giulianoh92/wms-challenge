@@ -63,6 +63,16 @@ Una vez arriba, todo cuelga del context-path `/api/templates`:
 - OpenAPI JSON: http://localhost:8080/api/templates/openapi
 - Health: http://localhost:8080/api/templates/actuator/health
 
+### Alternativa: Docker
+
+El repositorio incluye un [`Dockerfile`](Dockerfile) multi-stage (build con `eclipse-temurin:24-jdk`,
+runtime con `eclipse-temurin:24-jre`) que no requiere tener Java instalado en el host:
+
+```shell
+docker build -t wms-challenge .
+docker run -p 8080:8080 wms-challenge
+```
+
 ## 3. Datos semilla (seed)
 
 El dataset fijo (5 ubicaciones, 3 reglas de reposición, 6 registros de stock) se carga **automáticamente en
