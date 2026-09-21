@@ -39,3 +39,6 @@ out/
 
 ### Challenge assets ###
 *.pdf
+
+### Claude Code / gentle-ai ###
+.atl/
