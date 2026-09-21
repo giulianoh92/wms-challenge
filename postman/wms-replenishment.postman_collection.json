@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "d822bf17-e67c-495a-905a-8688a083995c",
-		"name": "WMS Replenishment Module",
-		"description": "End-to-end circuit for the WMS replenishment module (SPECS.md). Run the whole collection top to bottom against a freshly started app (./run.sh) with the Collection Runner, or step through folders manually in order — later requests depend on state created by earlier ones within the same folder.\n\nFolders 2-4 use dedicated fixtures (PICK-99 / RSV-99 / SKU-900) so they never disturb the seeded SKU-100/SKU-200/SKU-300 scenario that folder 5 exercises. Folder 5 replays the exact walkthrough from README.md / docs/SRS.md §7, including the D4 idempotency check and the D6 guarantee that a task failing to confirm (insufficient stock) stays OPEN.",
+		"name": "Módulo de Reposición WMS",
+		"description": "Circuito completo del módulo de reposición WMS (SPECS.md). Corré toda la colección de punta a punta con el Collection Runner contra una app recién levantada (./run.sh), o andá carpeta por carpeta en orden manualmente — los requests posteriores dependen del estado que arman los anteriores dentro de la misma carpeta.\n\nLas carpetas 2-4 usan fixtures propios (PICK-99 / RSV-99 / SKU-900) para no pisar nunca el escenario semillado de SKU-100/SKU-200/SKU-300 que ejercita la carpeta 5. La carpeta 5 reproduce el recorrido exacto del README.md / docs/SRS.md §7, incluyendo el chequeo de idempotencia D4 y la garantía D6 de que una tarea que falla al confirmar (stock insuficiente) queda OPEN.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -13,27 +13,27 @@
 	],
 	"item": [
 		{
-			"name": "1. Seed Verification",
+			"name": "1. Verificación del seed",
 			"item": [
 				{
-					"name": "List Locations (seed)",
+					"name": "Listar ubicaciones (seed)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const locations = pm.response.json();",
-									"pm.test(\"Seed contains exactly 5 locations\", function () {",
+									"pm.test(\"El seed contiene exactamente 5 ubicaciones\", function () {",
 									"    pm.expect(locations.length).to.eql(5);",
 									"});",
 									"",
 									"const codes = locations.map(l => l.code).sort();",
-									"pm.test(\"Seed locations match SPECS.md\", function () {",
+									"pm.test(\"Las ubicaciones del seed coinciden con SPECS.md\", function () {",
 									"    pm.expect(codes).to.eql([\"PICK-01\", \"PICK-02\", \"RSV-01\", \"RSV-02\", \"RSV-03\"]);",
 									"});"
 								]
@@ -52,19 +52,19 @@
 					"response": []
 				},
 				{
-					"name": "List Stock (seed)",
+					"name": "Listar stock (seed)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const stock = pm.response.json();",
-									"pm.test(\"Seed contains exactly 6 stock records\", function () {",
+									"pm.test(\"El seed contiene exactamente 6 registros de stock\", function () {",
 									"    pm.expect(stock.length).to.eql(6);",
 									"});",
 									"",
@@ -73,7 +73,7 @@
 									"    return item ? item.quantity : undefined;",
 									"}",
 									"",
-									"pm.test(\"Seed quantities match SPECS.md\", function () {",
+									"pm.test(\"Las cantidades del seed coinciden con SPECS.md\", function () {",
 									"    pm.expect(qty(\"SKU-100\", \"PICK-01\")).to.eql(5);",
 									"    pm.expect(qty(\"SKU-200\", \"PICK-01\")).to.eql(40);",
 									"    pm.expect(qty(\"SKU-300\", \"PICK-02\")).to.eql(10);",
@@ -99,22 +99,22 @@
 			]
 		},
 		{
-			"name": "2. Locations",
+			"name": "2. Ubicaciones",
 			"item": [
 				{
-					"name": "Create Location - Picking (fixture)",
+					"name": "Crear ubicación - Picking (fixture)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 201\", function () {",
+									"pm.test(\"El status code es 201\", function () {",
 									"    pm.response.to.have.status(201);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Location created with requested code and type\", function () {",
+									"pm.test(\"La ubicación se crea con el código y tipo solicitados\", function () {",
 									"    pm.expect(body.code).to.eql(\"PICK-99\");",
 									"    pm.expect(body.type).to.eql(\"PICKING\");",
 									"});"
@@ -139,19 +139,19 @@
 					"response": []
 				},
 				{
-					"name": "Create Location - Reserve (fixture)",
+					"name": "Crear ubicación - Reserva (fixture)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 201\", function () {",
+									"pm.test(\"El status code es 201\", function () {",
 									"    pm.response.to.have.status(201);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Location created with requested code and type\", function () {",
+									"pm.test(\"La ubicación se crea con el código y tipo solicitados\", function () {",
 									"    pm.expect(body.code).to.eql(\"RSV-99\");",
 									"    pm.expect(body.type).to.eql(\"RESERVE\");",
 									"});"
@@ -176,19 +176,19 @@
 					"response": []
 				},
 				{
-					"name": "Create Location - Duplicate Code (409)",
+					"name": "Crear ubicación - Código duplicado (409)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 409\", function () {",
+									"pm.test(\"El status code es 409\", function () {",
 									"    pm.response.to.have.status(409);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 409 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 409 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(409);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -213,19 +213,19 @@
 					"response": []
 				},
 				{
-					"name": "Create Location - Invalid Type (400)",
+					"name": "Crear ubicación - Tipo inválido (400)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 400\", function () {",
+									"pm.test(\"El status code es 400\", function () {",
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 400 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(400);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -250,24 +250,24 @@
 					"response": []
 				},
 				{
-					"name": "List Locations (includes fixtures)",
+					"name": "Listar ubicaciones (incluye los fixtures)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const codes = pm.response.json().map(l => l.code);",
-									"pm.test(\"Response includes the fixtures just created\", function () {",
+									"pm.test(\"La respuesta incluye los fixtures recién creados\", function () {",
 									"    pm.expect(codes).to.include(\"PICK-99\");",
 									"    pm.expect(codes).to.include(\"RSV-99\");",
 									"});",
 									"",
-									"pm.test(\"The rejected invalid-type location was never created\", function () {",
+									"pm.test(\"La ubicación de tipo inválido rechazada nunca se creó\", function () {",
 									"    pm.expect(codes).to.not.include(\"PICK-98\");",
 									"});"
 								]
@@ -291,19 +291,19 @@
 			"name": "3. Stock",
 			"item": [
 				{
-					"name": "Load Stock - Reserve fixture",
+					"name": "Cargar stock - Fixture de reserva",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Stock loaded with requested quantity\", function () {",
+									"pm.test(\"El stock se carga con la cantidad solicitada\", function () {",
 									"    pm.expect(body.sku).to.eql(\"SKU-900\");",
 									"    pm.expect(body.locationCode).to.eql(\"RSV-99\");",
 									"    pm.expect(body.quantity).to.eql(200);",
@@ -329,19 +329,19 @@
 					"response": []
 				},
 				{
-					"name": "Load Stock - Picking fixture",
+					"name": "Cargar stock - Fixture de picking",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Stock loaded with requested quantity\", function () {",
+									"pm.test(\"El stock se carga con la cantidad solicitada\", function () {",
 									"    pm.expect(body.sku).to.eql(\"SKU-900\");",
 									"    pm.expect(body.locationCode).to.eql(\"PICK-99\");",
 									"    pm.expect(body.quantity).to.eql(5);",
@@ -367,19 +367,19 @@
 					"response": []
 				},
 				{
-					"name": "Load Stock - Unknown Location (404)",
+					"name": "Cargar stock - Ubicación inexistente (404)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 404\", function () {",
+									"pm.test(\"El status code es 404\", function () {",
 									"    pm.response.to.have.status(404);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 404 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(404);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -404,19 +404,19 @@
 					"response": []
 				},
 				{
-					"name": "Load Stock - Negative Quantity (400)",
+					"name": "Cargar stock - Cantidad negativa (400)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 400\", function () {",
+									"pm.test(\"El status code es 400\", function () {",
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 400 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(400);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -441,19 +441,19 @@
 					"response": []
 				},
 				{
-					"name": "Query Stock by SKU",
+					"name": "Consultar stock por SKU",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const stock = pm.response.json();",
-									"pm.test(\"Returns both SKU-900 records\", function () {",
+									"pm.test(\"Devuelve los dos registros de SKU-900\", function () {",
 									"    pm.expect(stock.length).to.eql(2);",
 									"    stock.forEach(item => pm.expect(item.sku).to.eql(\"SKU-900\"));",
 									"});"
@@ -474,19 +474,19 @@
 					"response": []
 				},
 				{
-					"name": "Query Stock by Location",
+					"name": "Consultar stock por ubicación",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const stock = pm.response.json();",
-									"pm.test(\"Returns only PICK-99 records\", function () {",
+									"pm.test(\"Devuelve solo registros de PICK-99\", function () {",
 									"    pm.expect(stock.length).to.be.at.least(1);",
 									"    stock.forEach(item => pm.expect(item.locationCode).to.eql(\"PICK-99\"));",
 									"});"
@@ -507,19 +507,19 @@
 					"response": []
 				},
 				{
-					"name": "Move Stock - Reserve to Picking",
+					"name": "Mover stock - De reserva a picking",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Move recorded with a direct move (no related task)\", function () {",
+									"pm.test(\"El movimiento se registra como directo (sin tarea asociada)\", function () {",
 									"    pm.expect(body.fromLocation).to.eql(\"RSV-99\");",
 									"    pm.expect(body.toLocation).to.eql(\"PICK-99\");",
 									"    pm.expect(body.quantity).to.eql(50);",
@@ -546,19 +546,19 @@
 					"response": []
 				},
 				{
-					"name": "Move Stock - Insufficient Stock (409)",
+					"name": "Mover stock - Stock insuficiente (409)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 409\", function () {",
+									"pm.test(\"El status code es 409\", function () {",
 									"    pm.response.to.have.status(409);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 409 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 409 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(409);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -583,19 +583,19 @@
 					"response": []
 				},
 				{
-					"name": "Move Stock - Unknown Location (404)",
+					"name": "Mover stock - Ubicación inexistente (404)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 404\", function () {",
+									"pm.test(\"El status code es 404\", function () {",
 									"    pm.response.to.have.status(404);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 404 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(404);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -620,21 +620,21 @@
 					"response": []
 				},
 				{
-					"name": "Query Stock Move History",
+					"name": "Consultar historial de movimientos de stock",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const moves = pm.response.json();",
-									"pm.test(\"Contains the direct move just made, untied to any task\", function () {",
+									"pm.test(\"Contiene el movimiento directo recién hecho, sin tarea asociada\", function () {",
 									"    const move = moves.find(m => m.fromLocation === \"RSV-99\" && m.toLocation === \"PICK-99\" && m.quantity === 50);",
-									"    pm.expect(move, \"move not found in history\").to.not.be.undefined;",
+									"    pm.expect(move, \"no se encontró el movimiento en el historial\").to.not.be.undefined;",
 									"    pm.expect(move.relatedTaskId).to.be.null;",
 									"});"
 								]
@@ -656,22 +656,22 @@
 			]
 		},
 		{
-			"name": "4. Replenishment Rules",
+			"name": "4. Reglas de reposición",
 			"item": [
 				{
-					"name": "Create Rule (fixture)",
+					"name": "Crear regla (fixture)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 201\", function () {",
+									"pm.test(\"El status code es 201\", function () {",
 									"    pm.response.to.have.status(201);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Rule created with the requested thresholds\", function () {",
+									"pm.test(\"La regla se crea con los umbrales solicitados\", function () {",
 									"    pm.expect(body.sku).to.eql(\"SKU-900\");",
 									"    pm.expect(body.locationCode).to.eql(\"PICK-99\");",
 									"    pm.expect(body.min).to.eql(10);",
@@ -698,19 +698,19 @@
 					"response": []
 				},
 				{
-					"name": "Create Rule - Wrong Location Type (400)",
+					"name": "Crear regla - Tipo de ubicación incorrecto (400)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 400\", function () {",
+									"pm.test(\"El status code es 400\", function () {",
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 400 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(400);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -735,19 +735,19 @@
 					"response": []
 				},
 				{
-					"name": "Create Rule - Missing Location (404)",
+					"name": "Crear regla - Ubicación inexistente (404)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 404\", function () {",
+									"pm.test(\"El status code es 404\", function () {",
 									"    pm.response.to.have.status(404);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 404 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(404);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -772,19 +772,19 @@
 					"response": []
 				},
 				{
-					"name": "Create Rule - Duplicate (409)",
+					"name": "Crear regla - Duplicada (409)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 409\", function () {",
+									"pm.test(\"El status code es 409\", function () {",
 									"    pm.response.to.have.status(409);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 409 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 409 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(409);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -811,28 +811,28 @@
 			]
 		},
 		{
-			"name": "5. Replenishment Tasks - Full Circuit",
+			"name": "5. Tareas de reposición - Circuito completo",
 			"item": [
 				{
-					"name": "Evaluate SKU-100 @ PICK-01 (full replenishment, 2 sources)",
+					"name": "Evaluar SKU-100 @ PICK-01 (reposición completa, 2 orígenes)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Needs replenishment and reserve fully covers it (60 + 50 >= 95)\", function () {",
+									"pm.test(\"Necesita reposición y la reserva la cubre por completo (60 + 50 >= 95)\", function () {",
 									"    pm.expect(body.replenishmentNeeded).to.be.true;",
 									"    pm.expect(body.fullyReplenished).to.be.true;",
 									"    pm.expect(body.tasks.length).to.eql(2);",
 									"});",
 									"",
-									"pm.test(\"Greedy descending selection: RSV-01 (60) before RSV-02 (35 of the remaining 35 needed)\", function () {",
+									"pm.test(\"Selección greedy descendente: RSV-01 (60) antes que RSV-02 (35 de los 35 restantes)\", function () {",
 									"    pm.expect(body.tasks[0].fromLocation).to.eql(\"RSV-01\");",
 									"    pm.expect(body.tasks[0].quantity).to.eql(60);",
 									"    pm.expect(body.tasks[1].fromLocation).to.eql(\"RSV-02\");",
@@ -866,19 +866,19 @@
 					"response": []
 				},
 				{
-					"name": "Evaluate SKU-300 @ PICK-02 (partial replenishment)",
+					"name": "Evaluar SKU-300 @ PICK-02 (reposición parcial)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Needs replenishment but reserve falls short (only 70 of 110 needed)\", function () {",
+									"pm.test(\"Necesita reposición pero la reserva no alcanza (solo 70 de los 110 necesarios)\", function () {",
 									"    pm.expect(body.replenishmentNeeded).to.be.true;",
 									"    pm.expect(body.fullyReplenished).to.be.false;",
 									"    pm.expect(body.tasks.length).to.eql(1);",
@@ -910,19 +910,19 @@
 					"response": []
 				},
 				{
-					"name": "Evaluate SKU-200 @ PICK-01 (already above min, no task)",
+					"name": "Evaluar SKU-200 @ PICK-01 (ya está sobre el mínimo, sin tarea)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Stock (40) already at or above min (10): no replenishment, no task\", function () {",
+									"pm.test(\"El stock (40) ya está en o por encima del mínimo (10): no hace falta reposición ni se crea ninguna tarea\", function () {",
 									"    pm.expect(body.replenishmentNeeded).to.be.false;",
 									"    pm.expect(body.fullyReplenished).to.be.false;",
 									"    pm.expect(body.tasks.length).to.eql(0);",
@@ -948,19 +948,19 @@
 					"response": []
 				},
 				{
-					"name": "Evaluate SKU-100 @ PICK-01 - Idempotent Re-run (D4)",
+					"name": "Evaluar SKU-100 @ PICK-01 - Reintento idempotente (D4)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Returns the same still-OPEN tasks instead of creating duplicates\", function () {",
+									"pm.test(\"Devuelve las mismas tareas OPEN en vez de crear duplicados\", function () {",
 									"    pm.expect(body.tasks.length).to.eql(2);",
 									"    const ids = body.tasks.map(t => t.id);",
 									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"confirmTaskId\"));",
@@ -987,19 +987,19 @@
 					"response": []
 				},
 				{
-					"name": "Evaluate - Wrong Location Type (400)",
+					"name": "Evaluar - Tipo de ubicación incorrecto (400)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 400\", function () {",
+									"pm.test(\"El status code es 400\", function () {",
 									"    pm.response.to.have.status(400);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 400 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(400);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -1024,19 +1024,19 @@
 					"response": []
 				},
 				{
-					"name": "Evaluate - Missing Rule (404)",
+					"name": "Evaluar - Regla inexistente (404)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 404\", function () {",
+									"pm.test(\"El status code es 404\", function () {",
 									"    pm.response.to.have.status(404);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 404 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(404);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -1061,19 +1061,19 @@
 					"response": []
 				},
 				{
-					"name": "List Replenishment Tasks",
+					"name": "Listar tareas de reposición",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const ids = pm.response.json().map(t => t.id);",
-									"pm.test(\"Includes every OPEN task created so far\", function () {",
+									"pm.test(\"Incluye todas las tareas OPEN creadas hasta ahora\", function () {",
 									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"confirmTaskId\"));",
 									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"secondOpenTaskId\"));",
 									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"cancelTaskId\"));",
@@ -1094,19 +1094,19 @@
 					"response": []
 				},
 				{
-					"name": "Confirm Task",
+					"name": "Confirmar tarea",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Task transitions OPEN -> CONFIRMED\", function () {",
+									"pm.test(\"La tarea pasa de OPEN a CONFIRMED\", function () {",
 									"    pm.expect(body.id).to.eql(pm.collectionVariables.get(\"confirmTaskId\"));",
 									"    pm.expect(body.status).to.eql(\"CONFIRMED\");",
 									"});"
@@ -1126,14 +1126,14 @@
 					"response": []
 				},
 				{
-					"name": "Verify Stock After Confirm",
+					"name": "Verificar el stock después de confirmar",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
@@ -1143,7 +1143,7 @@
 									"    return item ? item.quantity : 0;",
 									"}",
 									"",
-									"pm.test(\"60 units moved from RSV-01 (60 -> 0) to PICK-01 (5 -> 65)\", function () {",
+									"pm.test(\"Se movieron 60 unidades de RSV-01 (60 -> 0) a PICK-01 (5 -> 65)\", function () {",
 									"    pm.expect(qty(\"RSV-01\")).to.eql(0);",
 									"    pm.expect(qty(\"PICK-01\")).to.eql(65);",
 									"});"
@@ -1164,19 +1164,19 @@
 					"response": []
 				},
 				{
-					"name": "Verify Stock Move Traceability",
+					"name": "Verificar la trazabilidad del movimiento de stock",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const moves = pm.response.json();",
-									"pm.test(\"Confirming the task recorded exactly one traceable StockMove\", function () {",
+									"pm.test(\"Confirmar la tarea registró exactamente un StockMove trazable\", function () {",
 									"    pm.expect(moves.length).to.eql(1);",
 									"    pm.expect(moves[0].fromLocation).to.eql(\"RSV-01\");",
 									"    pm.expect(moves[0].toLocation).to.eql(\"PICK-01\");",
@@ -1200,19 +1200,19 @@
 					"response": []
 				},
 				{
-					"name": "Confirm Task - Already Confirmed (409)",
+					"name": "Confirmar tarea - Ya confirmada (409)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 409\", function () {",
+									"pm.test(\"El status code es 409\", function () {",
 									"    pm.response.to.have.status(409);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 409 and a clear message (terminal state)\", function () {",
+									"pm.test(\"La respuesta de error tiene status 409 y un mensaje claro (estado terminal)\", function () {",
 									"    pm.expect(body.status).to.eql(409);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -1232,19 +1232,19 @@
 					"response": []
 				},
 				{
-					"name": "Confirm Task - Not Found (404)",
+					"name": "Confirmar tarea - No encontrada (404)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 404\", function () {",
+									"pm.test(\"El status code es 404\", function () {",
 									"    pm.response.to.have.status(404);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"pm.test(\"La respuesta de error tiene status 404 y un mensaje claro\", function () {",
 									"    pm.expect(body.status).to.eql(404);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -1264,19 +1264,19 @@
 					"response": []
 				},
 				{
-					"name": "Cancel Task",
+					"name": "Cancelar tarea",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Task transitions OPEN -> CANCELLED\", function () {",
+									"pm.test(\"La tarea pasa de OPEN a CANCELLED\", function () {",
 									"    pm.expect(body.id).to.eql(pm.collectionVariables.get(\"cancelTaskId\"));",
 									"    pm.expect(body.status).to.eql(\"CANCELLED\");",
 									"});"
@@ -1296,14 +1296,14 @@
 					"response": []
 				},
 				{
-					"name": "Verify Stock Unchanged After Cancel",
+					"name": "Verificar que el stock no cambia al cancelar",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
@@ -1313,7 +1313,7 @@
 									"    return item ? item.quantity : 0;",
 									"}",
 									"",
-									"pm.test(\"Cancelling never moves stock: PICK-02 and RSV-03 stay at seed values\", function () {",
+									"pm.test(\"Cancelar nunca mueve stock: PICK-02 y RSV-03 se mantienen en los valores del seed\", function () {",
 									"    pm.expect(qty(\"PICK-02\")).to.eql(10);",
 									"    pm.expect(qty(\"RSV-03\")).to.eql(70);",
 									"});"
@@ -1334,19 +1334,19 @@
 					"response": []
 				},
 				{
-					"name": "Cancel Task - Already Cancelled (409)",
+					"name": "Cancelar tarea - Ya cancelada (409)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 409\", function () {",
+									"pm.test(\"El status code es 409\", function () {",
 									"    pm.response.to.have.status(409);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 409 and a clear message (terminal state)\", function () {",
+									"pm.test(\"La respuesta de error tiene status 409 y un mensaje claro (estado terminal)\", function () {",
 									"    pm.expect(body.status).to.eql(409);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -1366,19 +1366,19 @@
 					"response": []
 				},
 				{
-					"name": "Move Stock - Drain RSV-02 (setup for D6)",
+					"name": "Mover stock - Vaciar RSV-02 (preparación para D6)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"RSV-02 drained to zero, ahead of confirming the second open task\", function () {",
+									"pm.test(\"RSV-02 queda en cero, antes de confirmar la segunda tarea abierta\", function () {",
 									"    pm.expect(body.fromLocation).to.eql(\"RSV-02\");",
 									"    pm.expect(body.quantity).to.eql(50);",
 									"});"
@@ -1403,19 +1403,19 @@
 					"response": []
 				},
 				{
-					"name": "Confirm Task - Insufficient Stock at Source (409, D6)",
+					"name": "Confirmar tarea - Stock insuficiente en el origen (409, D6)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 409\", function () {",
+									"pm.test(\"El status code es 409\", function () {",
 									"    pm.response.to.have.status(409);",
 									"});",
 									"",
 									"const body = pm.response.json();",
-									"pm.test(\"Error response has status 409 and a clear message (source now has 0, task needs 35)\", function () {",
+									"pm.test(\"La respuesta de error tiene status 409 y un mensaje claro (el origen ahora tiene 0, la tarea necesita 35)\", function () {",
 									"    pm.expect(body.status).to.eql(409);",
 									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
 									"});"
@@ -1435,21 +1435,21 @@
 					"response": []
 				},
 				{
-					"name": "Verify Task Remains OPEN After Failed Confirm (D6 proof)",
+					"name": "Verificar que la tarea sigue OPEN tras un confirm fallido (prueba de D6)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
+									"pm.test(\"El status code es 200\", function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const tasks = pm.response.json();",
 									"const task = tasks.find(t => t.id === pm.collectionVariables.get(\"secondOpenTaskId\"));",
-									"pm.test(\"A move that fails for insufficient stock never touches the task: it stays OPEN, not partially confirmed\", function () {",
-									"    pm.expect(task, \"task not found\").to.not.be.undefined;",
+									"pm.test(\"Un movimiento que falla por stock insuficiente nunca toca la tarea: queda OPEN, no confirmada a medias\", function () {",
+									"    pm.expect(task, \"no se encontró la tarea\").to.not.be.undefined;",
 									"    pm.expect(task.status).to.eql(\"OPEN\");",
 									"});"
 								]

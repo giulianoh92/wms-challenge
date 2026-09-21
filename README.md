@@ -141,7 +141,7 @@ curl -s -w "\n%{http_code}\n" -X POST $BASE/stock/move \
 `postman/wms-replenishment.postman_environment.json` para la variable `baseUrl`) cubre el circuito completo:
 los 10 endpoints requeridos, el mismo recorrido de datos semilla de arriba, y los caminos de error
 (400/404/409) de cada regla de negocio. Importá los dos archivos en Postman, elegí el environment "WMS
-Replenishment - Local" y corré toda la colección con el Collection Runner contra una app recién levantada —
+Reposición - Local" y corré toda la colección con el Collection Runner contra una app recién levantada —
 los requests posteriores dependen del estado que arman los anteriores dentro de la misma carpeta, así que
 corré todo de punta a punta. Las carpetas 2 a 4 usan fixtures propios (`PICK-99`/`RSV-99`/`SKU-900`) para no
 pisar el escenario semillado de `SKU-100`/`SKU-200`/`SKU-300` que usa la carpeta 5, incluyendo el chequeo de
