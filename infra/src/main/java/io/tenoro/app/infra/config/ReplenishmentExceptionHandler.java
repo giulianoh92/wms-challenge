@@ -5,6 +5,7 @@ import io.tenoro.app.domain.exception.ConflictException;
 import io.tenoro.app.domain.exception.NotFoundException;
 import io.tenoro.app.infra.adapter.inbound.web.LocationController;
 import io.tenoro.app.infra.adapter.inbound.web.ReplenishmentRuleController;
+import io.tenoro.app.infra.adapter.inbound.web.ReplenishmentTaskController;
 import io.tenoro.app.infra.adapter.inbound.web.StockController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +27,8 @@ import java.time.Instant;
  * internally in its own try/catch/finally and never lets an exception propagate (see CLAUDE.md) — but
  * assignableTypes makes that a belt-and-braces guarantee rather than an accident of package layout.
  */
-@RestControllerAdvice(assignableTypes = {LocationController.class, StockController.class, ReplenishmentRuleController.class})
+@RestControllerAdvice(assignableTypes = {LocationController.class, StockController.class,
+        ReplenishmentRuleController.class, ReplenishmentTaskController.class})
 public class ReplenishmentExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)

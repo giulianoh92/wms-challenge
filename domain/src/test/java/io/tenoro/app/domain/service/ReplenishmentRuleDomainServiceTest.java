@@ -117,6 +117,13 @@ class ReplenishmentRuleDomainServiceTest {
         public List<ReplenishmentRule> findAll() {
             return new ArrayList<>(rules);
         }
+
+        @Override
+        public Optional<ReplenishmentRule> findBySkuAndLocationCode(String sku, String locationCode) {
+            return rules.stream()
+                    .filter(rule -> rule.getSku().equals(sku) && rule.getLocationCode().equals(locationCode))
+                    .findFirst();
+        }
     }
 
     /**

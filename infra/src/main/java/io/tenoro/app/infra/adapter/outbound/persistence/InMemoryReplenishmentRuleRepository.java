@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -32,6 +33,11 @@ public class InMemoryReplenishmentRuleRepository implements ReplenishmentRuleRep
     @Override
     public List<ReplenishmentRule> findAll() {
         return new ArrayList<>(rules.values());
+    }
+
+    @Override
+    public Optional<ReplenishmentRule> findBySkuAndLocationCode(String sku, String locationCode) {
+        return Optional.ofNullable(rules.get(key(sku, locationCode)));
     }
 
     private static String key(String sku, String locationCode) {
