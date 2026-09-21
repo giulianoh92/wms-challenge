@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "d822bf17-e67c-495a-905a-8688a083995c",
 		"name": "Módulo de Reposición WMS",
-		"description": "Circuito completo del módulo de reposición WMS (SPECS.md). Corré toda la colección de punta a punta con el Collection Runner contra una app recién levantada (./run.sh), o andá carpeta por carpeta en orden manualmente — los requests posteriores dependen del estado que arman los anteriores dentro de la misma carpeta.\n\nLas carpetas 2-4 usan fixtures propios (PICK-99 / RSV-99 / SKU-900) para no pisar nunca el escenario semillado de SKU-100/SKU-200/SKU-300 que ejercita la carpeta 5. La carpeta 5 reproduce el recorrido exacto del README.md / docs/SRS.md §7, incluyendo el chequeo de idempotencia D4 y la garantía D6 de que una tarea que falla al confirmar (stock insuficiente) queda OPEN.",
+		"description": "Circuito completo del módulo de reposición WMS (SPECS.md). Es posible correr toda la colección de punta a punta con el Collection Runner contra una app recién levantada (./run.sh), o recorrer las carpetas en orden manualmente — los requests posteriores dependen del estado que arman los anteriores dentro de la misma carpeta.\n\nLas carpetas 2-4 usan fixtures propios (PICK-99 / RSV-99 / SKU-900) para no pisar nunca el escenario semillado de SKU-100/SKU-200/SKU-300 que ejercita la carpeta 5. La carpeta 5 reproduce el recorrido exacto del README.md / docs/SRS.md §7, incluyendo el chequeo de idempotencia D4 y la garantía D6 de que una tarea que falla al confirmar (stock insuficiente) queda OPEN.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [

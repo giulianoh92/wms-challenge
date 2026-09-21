@@ -29,43 +29,39 @@ trabajo por defecto — con el conjunto de herramientas del ecosistema
 
 ## 1. Instalar Java 24
 
-Es lo **único** que necesitás instalar. Gradle viene incluido (wrapper `./gradlew`) y no hace falta base de datos.
+Es lo **único** que se necesita instalar. Gradle viene incluido (wrapper `./gradlew`) y no hace falta base
+de datos.
 
-La forma más simple es con [SDKMAN](https://sdkman.io/):
+El repositorio fija la versión exacta en [`mise.toml`](mise.toml) (`temurin-24.0.2+12`). Con
+[mise](https://mise.jdx.dev/) instalado, alcanza con:
 
 ```shell
-# 1. Instalar SDKMAN
-curl -s "https://get.sdkman.io" | bash
-
-# 2. Cargarlo en la terminal actual
-source "$HOME/.sdkman/bin/sdkman-init.sh"
-
-# 3. Instalar Java 24
-sdk install java 24.0.2-tem
+mise install
 ```
 
-Verificá que quedó bien:
+Verificar que la instalación quedó correcta:
 
 ```shell
 java -version    # debería mostrar la versión 24
 ```
 
-> Si preferís, podés instalar cualquier JDK 24 a mano (Temurin, Oracle, etc.) y asegurarte de que
-> `java -version` apunte a esa versión.
+> Alternativamente, es posible instalar cualquier JDK 24 de forma manual (Temurin, Oracle, etc., por ejemplo
+> con [SDKMAN](https://sdkman.io/)) y asegurarse de que `java -version` apunte a esa versión.
 
 ## 2. Levantar la app
 
 ```shell
 ./run.sh              # levanta en http://localhost:8080, perfil "local"
-./run.sh 9090          # o el puerto que quieras
+./run.sh 9090          # o el puerto que se prefiera
 ./gradlew bootRun      # equivalente, sin el atajo de puerto/perfil
 ```
 
 Una vez arriba, todo cuelga del context-path `/api/templates`:
 
 - API base: http://localhost:8080/api/templates
-- **Swagger UI** (probá los endpoints desde el navegador): http://localhost:8080/api/templates/documentation
+- **Swagger UI** (para probar los endpoints desde el navegador): http://localhost:8080/api/templates/documentation
 - OpenAPI JSON: http://localhost:8080/api/templates/openapi
+- Health: http://localhost:8080/api/templates/actuator/health
 
 ## 3. Datos semilla (seed)
 
@@ -79,13 +75,14 @@ cada arranque**, sin ningún comando ni flag extra. El detalle completo está en
 ./gradlew test
 ```
 
-Para correr una clase o método puntual, fijate los ejemplos con el filtro `--tests` documentados en
+Para correr una clase o método puntual, ver los ejemplos con el filtro `--tests` documentados en
 [`CLAUDE.md`](CLAUDE.md#commands).
 
 ## 5. Probar el flujo completo a mano
 
 La secuencia de abajo es el escenario exacto de [`docs/SRS.md` §7](docs/SRS.md), lista para copiar y pegar en
-orden contra una app recién levantada. También podés seguirla desde Swagger UI si preferís el navegador.
+orden contra una app recién levantada. También es posible seguirla desde Swagger UI para quienes prefieran
+el navegador.
 
 ```bash
 BASE=http://localhost:8080/api/templates
@@ -117,8 +114,8 @@ curl -s -X POST $BASE/replenishment/tasks \
 # 6. Listar todas las tareas
 curl -s $BASE/replenishment/tasks
 
-# 7. Confirmar una de las tareas OPEN del paso 3 (usá su id real de la respuesta)
-TASK_ID=<pegá-un-id-de-tarea-acá>
+# 7. Confirmar una de las tareas OPEN del paso 3 (usar el id real de la respuesta)
+TASK_ID=<id-de-una-tarea-del-paso-3>
 curl -s -X POST $BASE/replenishment/tasks/$TASK_ID/confirm
 
 # 8. Verificar que el stock efectivamente se movió
@@ -131,7 +128,7 @@ curl -s "$BASE/stock/moves?relatedTaskId=$TASK_ID"
 curl -s -w "\n%{http_code}\n" -X POST $BASE/replenishment/tasks/$TASK_ID/confirm
 
 # 11. Cancelar otra tarea OPEN (por ejemplo, la del paso 4) - no mueve stock
-OTHER_TASK_ID=<pegá-otro-id-de-tarea-acá>
+OTHER_TASK_ID=<id-de-otra-tarea-del-paso-4>
 curl -s -X POST $BASE/replenishment/tasks/$OTHER_TASK_ID/cancel
 curl -s "$BASE/stock?sku=SKU-300"   # sin cambios
 ```
@@ -158,14 +155,15 @@ curl -s -w "\n%{http_code}\n" -X POST $BASE/stock/move \
 `postman/wms-replenishment.postman_collection.json` (junto con
 `postman/wms-replenishment.postman_environment.json` para la variable `baseUrl`) cubre el circuito completo:
 los 10 endpoints requeridos, el mismo recorrido de datos semilla de arriba, y los caminos de error
-(400/404/409) de cada regla de negocio. Importá los dos archivos en Postman, elegí el environment "WMS
-Reposición - Local" y corré toda la colección con el Collection Runner contra una app recién levantada —
-los requests posteriores dependen del estado que arman los anteriores dentro de la misma carpeta, así que
-corré todo de punta a punta. Las carpetas 2 a 4 usan fixtures propios (`PICK-99`/`RSV-99`/`SKU-900`) para no
-pisar el escenario semillado de `SKU-100`/`SKU-200`/`SKU-300` que usa la carpeta 5, incluyendo el chequeo de
-idempotencia (D4) y la garantía de que una tarea que falla al confirmar por falta de stock queda OPEN (D6).
+(400/404/409) de cada regla de negocio. Se deben importar los dos archivos en Postman, elegir el environment
+"WMS Reposición - Local" y correr toda la colección con el Collection Runner contra una app recién levantada
+— los requests posteriores dependen del estado que arman los anteriores dentro de la misma carpeta, por lo
+que es necesario correrla de punta a punta. Las carpetas 2 a 4 usan fixtures propios
+(`PICK-99`/`RSV-99`/`SKU-900`) para no pisar el escenario semillado de `SKU-100`/`SKU-200`/`SKU-300` que usa
+la carpeta 5, incluyendo el chequeo de idempotencia (D4) y la garantía de que una tarea que falla al
+confirmar por falta de stock queda OPEN (D6).
 
-También podés correrla sin interfaz con [Newman](https://github.com/postmanlabs/newman):
+También es posible correrla sin interfaz gráfica con [Newman](https://github.com/postmanlabs/newman):
 
 ```bash
 npx newman run postman/wms-replenishment.postman_collection.json \
