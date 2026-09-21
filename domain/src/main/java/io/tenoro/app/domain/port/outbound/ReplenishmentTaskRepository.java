@@ -4,6 +4,7 @@ import io.tenoro.app.domain.model.ReplenishmentTask;
 import io.tenoro.app.domain.model.ReplenishmentTaskStatus;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Outbound port for ReplenishmentTask persistence operations.
@@ -39,4 +40,13 @@ public interface ReplenishmentTaskRepository {
      * @return the matching tasks, empty if none
      */
     List<ReplenishmentTask> findBySkuAndToLocationAndStatus(String sku, String toLocation, ReplenishmentTaskStatus status);
+
+    /**
+     * Retrieves a single replenishment task by its system-generated id (used by confirm/cancel,
+     * docs/SRS.md FR-TSK-03/04).
+     *
+     * @param id the task id to look up
+     * @return the matching task, or empty if none exists with that id
+     */
+    Optional<ReplenishmentTask> findById(String id);
 }

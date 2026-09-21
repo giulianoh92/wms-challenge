@@ -48,8 +48,9 @@ public class DomainConfiguration {
     public ReplenishmentTaskService replenishmentTaskService(ReplenishmentTaskRepository replenishmentTaskRepository,
                                                                ReplenishmentRuleRepository replenishmentRuleRepository,
                                                                InventoryRepository inventoryRepository,
-                                                               LocationRepository locationRepository) {
+                                                               LocationRepository locationRepository,
+                                                               StockService stockService) {
         return new ReplenishmentTaskDomainService(replenishmentTaskRepository, replenishmentRuleRepository,
-                inventoryRepository, locationRepository);
+                inventoryRepository, locationRepository, stockService);
     }
 }

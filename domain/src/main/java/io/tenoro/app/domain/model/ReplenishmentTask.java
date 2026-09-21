@@ -1,5 +1,6 @@
 package io.tenoro.app.domain.model;
 
+import io.tenoro.app.domain.exception.ConflictException;
 import lombok.Builder;
 import lombok.Data;
 
@@ -46,5 +47,37 @@ public class ReplenishmentTask {
         this.quantity = quantity;
         // Defaults to OPEN when constructed via the normal evaluation flow (docs/SRS.md §3.3/§3.4).
         this.status = (status == null) ? ReplenishmentTaskStatus.OPEN : status;
+    }
+
+    /**
+     * Transitions this task to CONFIRMED (docs/SRS.md §3.4, FR-TSK-03), per this repo's "mutation
+     * returns a new instance" convention (never setters) — see CLAUDE.md. Pure and side-effect-free:
+     * ReplenishmentTaskDomainService calls this BEFORE attempting the underlying stock move
+     * (docs/ARCHITECTURE.md AD-03), so an already-terminal task fails fast with 409 before any I/O.
+     *
+     * @return a new CONFIRMED instance with all other fields unchanged
+     * @throws ConflictException if this task is not currently OPEN (BR-08 — terminal states never
+     *         transition again, and none of their fields ever change)
+     */
+    public ReplenishmentTask confirmed() {
+        if (status != ReplenishmentTaskStatus.OPEN) {
+            throw new ConflictException("ReplenishmentTask with id '" + id + "' cannot be confirmed: current status is " + status + ", expected OPEN");
+        }
+        return new ReplenishmentTask(id, sku, fromLocation, toLocation, quantity, ReplenishmentTaskStatus.CONFIRMED);
+    }
+
+    /**
+     * Transitions this task to CANCELLED (docs/SRS.md §3.4, FR-TSK-04), per this repo's "mutation
+     * returns a new instance" convention (never setters) — see CLAUDE.md.
+     *
+     * @return a new CANCELLED instance with all other fields unchanged
+     * @throws ConflictException if this task is not currently OPEN (BR-08 — terminal states never
+     *         transition again, and none of their fields ever change)
+     */
+    public ReplenishmentTask cancelled() {
+        if (status != ReplenishmentTaskStatus.OPEN) {
+            throw new ConflictException("ReplenishmentTask with id '" + id + "' cannot be cancelled: current status is " + status + ", expected OPEN");
+        }
+        return new ReplenishmentTask(id, sku, fromLocation, toLocation, quantity, ReplenishmentTaskStatus.CANCELLED);
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -38,5 +39,10 @@ public class InMemoryReplenishmentTaskRepository implements ReplenishmentTaskRep
                         && task.getToLocation().equals(toLocation)
                         && task.getStatus() == status)
                 .toList();
+    }
+
+    @Override
+    public Optional<ReplenishmentTask> findById(String id) {
+        return Optional.ofNullable(tasks.get(id));
     }
 }

@@ -1,5 +1,6 @@
 package io.tenoro.app.domain.service;
 
+import io.tenoro.app.domain.exception.ConflictException;
 import io.tenoro.app.domain.exception.NotFoundException;
 import io.tenoro.app.domain.model.InventoryItem;
 import io.tenoro.app.domain.model.Location;
@@ -8,10 +9,13 @@ import io.tenoro.app.domain.model.ReplenishmentEvaluationResult;
 import io.tenoro.app.domain.model.ReplenishmentRule;
 import io.tenoro.app.domain.model.ReplenishmentTask;
 import io.tenoro.app.domain.model.ReplenishmentTaskStatus;
+import io.tenoro.app.domain.model.StockMove;
+import io.tenoro.app.domain.port.inbound.StockService;
 import io.tenoro.app.domain.port.outbound.InventoryRepository;
 import io.tenoro.app.domain.port.outbound.LocationRepository;
 import io.tenoro.app.domain.port.outbound.ReplenishmentRuleRepository;
 import io.tenoro.app.domain.port.outbound.ReplenishmentTaskRepository;
+import io.tenoro.app.domain.port.outbound.StockMoveRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +41,8 @@ class ReplenishmentTaskDomainServiceTest {
     private FakeReplenishmentRuleRepository ruleRepository;
     private FakeInventoryRepository inventoryRepository;
     private FakeLocationRepository locationRepository;
+    private FakeStockMoveRepository stockMoveRepository;
+    private StockService stockService;
     private ReplenishmentTaskDomainService service;
 
     @BeforeEach
@@ -45,7 +51,12 @@ class ReplenishmentTaskDomainServiceTest {
         ruleRepository = new FakeReplenishmentRuleRepository();
         inventoryRepository = new FakeInventoryRepository();
         locationRepository = new FakeLocationRepository();
-        service = new ReplenishmentTaskDomainService(taskRepository, ruleRepository, inventoryRepository, locationRepository);
+        stockMoveRepository = new FakeStockMoveRepository();
+        // Real StockDomainService wired against this test's own fakes (docs/ARCHITECTURE.md AD-03):
+        // confirm(id) must reuse the actual atomic move logic, not a StockService test double that
+        // could silently drift from what moveStock really does.
+        stockService = new StockDomainService(inventoryRepository, locationRepository, stockMoveRepository);
+        service = new ReplenishmentTaskDomainService(taskRepository, ruleRepository, inventoryRepository, locationRepository, stockService);
     }
 
     private void givenPickingLocation(String code) {
@@ -280,14 +291,168 @@ class ReplenishmentTaskDomainServiceTest {
         assertTrue(all.stream().anyMatch(t -> t.getId().equals(cancelled.getId())));
     }
 
+    // -------------------------------------------------------------------------------------------
+    // confirm(id) — FR-TSK-03, §3.6, D6, BR-08/09/10
+    // -------------------------------------------------------------------------------------------
+
+    @Test
+    void confirm_ShouldThrowNotFoundException_WhenTaskDoesNotExist() {
+        assertThrows(NotFoundException.class, () -> service.confirm("missing-id"));
+    }
+
+    @Test
+    void confirm_ShouldTransitionTaskToConfirmed_AndMoveStock_AndRecordStockMove_WhenSuccessful() {
+        givenReserveLocation("RSV-01");
+        givenPickingLocation("PICK-01");
+        givenStock("SKU-100", "RSV-01", 60);
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-100").fromLocation("RSV-01").toLocation("PICK-01").quantity(60)
+                .status(ReplenishmentTaskStatus.OPEN).build());
+
+        ReplenishmentTask confirmed = service.confirm(task.getId());
+
+        assertEquals(ReplenishmentTaskStatus.CONFIRMED, confirmed.getStatus());
+        assertEquals(ReplenishmentTaskStatus.CONFIRMED, taskRepository.findById(task.getId()).orElseThrow().getStatus());
+
+        // BR-09/BR-10: the same atomic move as POST /stock/move actually ran, and exactly one StockMove
+        // was appended, linked back to this task via relatedTaskId (D14).
+        assertEquals(0, inventoryRepository.findBySkuAndLocationCode("SKU-100", "RSV-01").orElseThrow().getQuantity());
+        assertEquals(60, inventoryRepository.findBySkuAndLocationCode("SKU-100", "PICK-01").orElseThrow().getQuantity());
+        List<StockMove> moves = stockMoveRepository.query(null, null, task.getId());
+        assertEquals(1, moves.size());
+        assertEquals("SKU-100", moves.get(0).getSku());
+        assertEquals("RSV-01", moves.get(0).getFromLocation());
+        assertEquals("PICK-01", moves.get(0).getToLocation());
+        assertEquals(60, moves.get(0).getQuantity());
+        assertEquals(task.getId(), moves.get(0).getRelatedTaskId());
+    }
+
+    @Test
+    void confirm_ShouldThrowConflictException_AndLeaveTaskOpen_AndInsertNoStockMove_WhenSourceStockBecomesInsufficientBeforeConfirm() {
+        // D6: the reserve source's stock changed (drained) between task creation and confirmation.
+        givenReserveLocation("RSV-05");
+        givenPickingLocation("PICK-05");
+        givenStock("SKU-500", "RSV-05", 60);
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-500").fromLocation("RSV-05").toLocation("PICK-05").quantity(60)
+                .status(ReplenishmentTaskStatus.OPEN).build());
+        givenStock("SKU-500", "RSV-05", 10);
+
+        assertThrows(ConflictException.class, () -> service.confirm(task.getId()));
+
+        ReplenishmentTask stillOpen = taskRepository.findById(task.getId()).orElseThrow();
+        assertEquals(ReplenishmentTaskStatus.OPEN, stillOpen.getStatus());
+        assertTrue(stockMoveRepository.query(null, null, task.getId()).isEmpty());
+        // No partial debit either (BR-06) — the failed moveStock call never touched inventory.
+        assertEquals(10, inventoryRepository.findBySkuAndLocationCode("SKU-500", "RSV-05").orElseThrow().getQuantity());
+    }
+
+    @Test
+    void confirm_ShouldThrowConflictException_WhenTaskIsAlreadyConfirmed() {
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-600").fromLocation("RSV-06").toLocation("PICK-06").quantity(10)
+                .status(ReplenishmentTaskStatus.CONFIRMED).build());
+
+        assertThrows(ConflictException.class, () -> service.confirm(task.getId()));
+        assertTrue(stockMoveRepository.query(null, null, task.getId()).isEmpty());
+    }
+
+    @Test
+    void confirm_ShouldThrowConflictException_WhenTaskIsAlreadyCancelled() {
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-700").fromLocation("RSV-07").toLocation("PICK-07").quantity(10)
+                .status(ReplenishmentTaskStatus.CANCELLED).build());
+
+        assertThrows(ConflictException.class, () -> service.confirm(task.getId()));
+        assertTrue(stockMoveRepository.query(null, null, task.getId()).isEmpty());
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // cancel(id) — FR-TSK-04, BR-08
+    // -------------------------------------------------------------------------------------------
+
+    @Test
+    void cancel_ShouldThrowNotFoundException_WhenTaskDoesNotExist() {
+        assertThrows(NotFoundException.class, () -> service.cancel("missing-id"));
+    }
+
+    @Test
+    void cancel_ShouldTransitionTaskToCancelled_AndMoveNoStock_WhenSuccessful() {
+        givenReserveLocation("RSV-02");
+        givenPickingLocation("PICK-02");
+        givenStock("SKU-200", "RSV-02", 40);
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-200").fromLocation("RSV-02").toLocation("PICK-02").quantity(40)
+                .status(ReplenishmentTaskStatus.OPEN).build());
+
+        ReplenishmentTask cancelled = service.cancel(task.getId());
+
+        assertEquals(ReplenishmentTaskStatus.CANCELLED, cancelled.getStatus());
+        assertEquals(ReplenishmentTaskStatus.CANCELLED, taskRepository.findById(task.getId()).orElseThrow().getStatus());
+        // No stock movement at all: neither location's quantity changed, no StockMove inserted.
+        assertEquals(40, inventoryRepository.findBySkuAndLocationCode("SKU-200", "RSV-02").orElseThrow().getQuantity());
+        assertTrue(inventoryRepository.findBySkuAndLocationCode("SKU-200", "PICK-02").isEmpty());
+        assertTrue(stockMoveRepository.query(null, null, task.getId()).isEmpty());
+    }
+
+    @Test
+    void cancel_ShouldThrowConflictException_WhenTaskIsAlreadyConfirmed() {
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-800").fromLocation("RSV-08").toLocation("PICK-08").quantity(10)
+                .status(ReplenishmentTaskStatus.CONFIRMED).build());
+
+        assertThrows(ConflictException.class, () -> service.cancel(task.getId()));
+        assertEquals(ReplenishmentTaskStatus.CONFIRMED, taskRepository.findById(task.getId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    void cancel_ShouldThrowConflictException_WhenTaskIsAlreadyCancelled() {
+        ReplenishmentTask task = taskRepository.save(ReplenishmentTask.builder()
+                .sku("SKU-900").fromLocation("RSV-09").toLocation("PICK-09").quantity(10)
+                .status(ReplenishmentTaskStatus.CANCELLED).build());
+
+        assertThrows(ConflictException.class, () -> service.cancel(task.getId()));
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Full evaluate -> confirm sequence, using the seeded-scenario numbers (docs/SRS.md §7 Nota)
+    // -------------------------------------------------------------------------------------------
+
+    @Test
+    void evaluateThenConfirm_ShouldFullyReplenishPickingLocation_AcrossBothGeneratedTasks() {
+        givenPickingLocation("PICK-01");
+        givenReserveLocation("RSV-01");
+        givenReserveLocation("RSV-02");
+        givenRule("SKU-100", "PICK-01", 20, 100);
+        givenStock("SKU-100", "PICK-01", 5);
+        givenStock("SKU-100", "RSV-01", 60);
+        givenStock("SKU-100", "RSV-02", 50);
+
+        ReplenishmentEvaluationResult result = service.evaluate("SKU-100", "PICK-01");
+        assertEquals(2, result.getTasks().size());
+
+        for (ReplenishmentTask task : result.getTasks()) {
+            ReplenishmentTask confirmed = service.confirm(task.getId());
+            assertEquals(ReplenishmentTaskStatus.CONFIRMED, confirmed.getStatus());
+        }
+
+        // PICK-01 started at 5, +60 (RSV-01) +35 (RSV-02, capped by the remaining need) = 100.
+        assertEquals(100, inventoryRepository.findBySkuAndLocationCode("SKU-100", "PICK-01").orElseThrow().getQuantity());
+        assertEquals(0, inventoryRepository.findBySkuAndLocationCode("SKU-100", "RSV-01").orElseThrow().getQuantity());
+        assertEquals(15, inventoryRepository.findBySkuAndLocationCode("SKU-100", "RSV-02").orElseThrow().getQuantity());
+    }
+
     /**
-     * Hand-written in-memory fake — no Mockito, per the task's TDD instructions.
+     * Hand-written in-memory fake — no Mockito, per the task's TDD instructions. save() upserts by id
+     * (matching the real InMemoryReplenishmentTaskRepository's Map.put semantics) rather than blindly
+     * appending, so findById reflects a task's latest state after confirm/cancel re-saves it.
      */
     private static class FakeReplenishmentTaskRepository implements ReplenishmentTaskRepository {
         private final List<ReplenishmentTask> tasks = new ArrayList<>();
 
         @Override
         public ReplenishmentTask save(ReplenishmentTask task) {
+            tasks.removeIf(existing -> existing.getId().equals(task.getId()));
             tasks.add(task);
             return task;
         }
@@ -304,6 +469,11 @@ class ReplenishmentTaskDomainServiceTest {
                             && task.getToLocation().equals(toLocation)
                             && task.getStatus() == status)
                     .toList();
+        }
+
+        @Override
+        public Optional<ReplenishmentTask> findById(String id) {
+            return tasks.stream().filter(task -> task.getId().equals(id)).findFirst();
         }
     }
 
@@ -395,6 +565,31 @@ class ReplenishmentTaskDomainServiceTest {
         @Override
         public List<Location> findAll() {
             return new ArrayList<>(locations);
+        }
+    }
+
+    /**
+     * Hand-written in-memory fake — no Mockito, per the task's TDD instructions. Append-only, like the
+     * real InMemoryStockMoveRepository (docs/SRS.md BR-11): no update/delete method exists on the port.
+     */
+    private static class FakeStockMoveRepository implements StockMoveRepository {
+        private final List<StockMove> moves = new ArrayList<>();
+
+        @Override
+        public StockMove save(StockMove move) {
+            moves.add(move);
+            return move;
+        }
+
+        @Override
+        public List<StockMove> query(String sku, String location, String relatedTaskId) {
+            return moves.stream()
+                    .filter(move -> sku == null || move.getSku().equals(sku))
+                    .filter(move -> location == null
+                            || move.getFromLocation().equals(location)
+                            || move.getToLocation().equals(location))
+                    .filter(move -> relatedTaskId == null || relatedTaskId.equals(move.getRelatedTaskId()))
+                    .toList();
         }
     }
 }

@@ -96,6 +96,14 @@ class ReplenishmentTaskControllerIntegrationTest {
                 .content(requestBody));
     }
 
+    private org.springframework.test.web.servlet.ResultActions confirm(String taskId) throws Exception {
+        return mockMvc.perform(post("/replenishment/tasks/" + taskId + "/confirm"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions cancel(String taskId) throws Exception {
+        return mockMvc.perform(post("/replenishment/tasks/" + taskId + "/cancel"));
+    }
+
     // -------------------------------------------------------------------------------------------
     // Against the real seeded dataset (docs/SRS.md §7)
     // -------------------------------------------------------------------------------------------
@@ -246,5 +254,149 @@ class ReplenishmentTaskControllerIntegrationTest {
                 .andExpect(jsonPath("$.length()", is(2)))
                 .andExpect(jsonPath("$[*].fromLocation", containsInAnyOrder("RSV-01", "RSV-02")))
                 .andExpect(jsonPath("$[*].status", contains("OPEN", "OPEN")));
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // POST /replenishment/tasks/{id}/confirm — FR-TSK-03, §3.6
+    // -------------------------------------------------------------------------------------------
+
+    @Test
+    void confirmReplenishmentTask_ShouldReturnNotFound_WhenTaskIdDoesNotExist() throws Exception {
+        confirm("missing-task-id")
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status", is(404)))
+                .andExpect(jsonPath("$.message", notNullValue()));
+    }
+
+    @Test
+    void confirmReplenishmentTask_ShouldReturnConflict_WhenTaskIsNotOpen() throws Exception {
+        String taskId = evaluate("SKU-100", "PICK-01")
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String firstTaskId = objectMapper.readTree(taskId).at("/tasks/0/id").asText();
+        confirm(firstTaskId).andExpect(status().isOk());
+
+        confirm(firstTaskId)
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status", is(409)))
+                .andExpect(jsonPath("$.message", notNullValue()));
+    }
+
+    @Test
+    void confirmReplenishmentTask_ShouldTransitionToConfirmed_MoveStock_AndAppearInStockMoves() throws Exception {
+        String evaluateResponse = evaluate("SKU-100", "PICK-01")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tasks.length()", is(2)))
+                .andReturn().getResponse().getContentAsString();
+        String taskId = objectMapper.readTree(evaluateResponse).at("/tasks/0/id").asText();
+
+        confirm(taskId)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id", is(taskId)))
+                .andExpect(jsonPath("$.status", is("CONFIRMED")))
+                .andExpect(jsonPath("$.fromLocation", is("RSV-01")))
+                .andExpect(jsonPath("$.toLocation", is("PICK-01")))
+                .andExpect(jsonPath("$.quantity", is(60)));
+
+        // The task list now shows this task as CONFIRMED (BR-08 — persisted, not just returned).
+        mockMvc.perform(get("/replenishment/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + taskId + "')].status", contains("CONFIRMED")));
+
+        // BR-09/BR-10: the underlying stock move actually ran and is traceable via GET /stock/moves.
+        mockMvc.perform(get("/stock/moves").param("relatedTaskId", taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andExpect(jsonPath("$[0].sku", is("SKU-100")))
+                .andExpect(jsonPath("$[0].fromLocation", is("RSV-01")))
+                .andExpect(jsonPath("$[0].toLocation", is("PICK-01")))
+                .andExpect(jsonPath("$[0].quantity", is(60)))
+                .andExpect(jsonPath("$[0].relatedTaskId", is(taskId)));
+
+        // Stock actually moved: PICK-01 gained the 60 units debited from RSV-01.
+        mockMvc.perform(get("/stock").param("sku", "SKU-100").param("location", "RSV-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].quantity", is(0)));
+    }
+
+    @Test
+    void confirmReplenishmentTask_ShouldReturnConflict_AndLeaveTaskOpen_WhenSourceStockBecomesInsufficient() throws Exception {
+        createLocation("PICK-94", "PICKING");
+        createLocation("RSV-94", "RESERVE");
+        createRule("SKU-913", "PICK-94", 20, 100);
+        loadStock("SKU-913", "PICK-94", 5);
+        loadStock("SKU-913", "RSV-94", 95);
+
+        String evaluateResponse = evaluate("SKU-913", "PICK-94")
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String taskId = objectMapper.readTree(evaluateResponse).at("/tasks/0/id").asText();
+
+        // D6: the reserve source's stock drains after task creation, before confirmation is attempted.
+        loadStock("SKU-913", "RSV-94", 10);
+
+        confirm(taskId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status", is(409)));
+
+        mockMvc.perform(get("/replenishment/tasks"))
+                .andExpect(jsonPath("$[?(@.id=='" + taskId + "')].status", contains("OPEN")));
+        mockMvc.perform(get("/stock/moves").param("relatedTaskId", taskId))
+                .andExpect(jsonPath("$", empty()));
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // POST /replenishment/tasks/{id}/cancel — FR-TSK-04
+    // -------------------------------------------------------------------------------------------
+
+    @Test
+    void cancelReplenishmentTask_ShouldReturnNotFound_WhenTaskIdDoesNotExist() throws Exception {
+        cancel("missing-task-id")
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status", is(404)))
+                .andExpect(jsonPath("$.message", notNullValue()));
+    }
+
+    @Test
+    void cancelReplenishmentTask_ShouldReturnConflict_WhenTaskIsNotOpen() throws Exception {
+        String evaluateResponse = evaluate("SKU-100", "PICK-01")
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String taskId = objectMapper.readTree(evaluateResponse).at("/tasks/0/id").asText();
+        cancel(taskId).andExpect(status().isOk());
+
+        cancel(taskId)
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status", is(409)))
+                .andExpect(jsonPath("$.message", notNullValue()));
+    }
+
+    @Test
+    void cancelReplenishmentTask_ShouldTransitionToCancelled_AndMoveNoStock() throws Exception {
+        String evaluateResponse = evaluate("SKU-300", "PICK-02")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tasks.length()", is(1)))
+                .andReturn().getResponse().getContentAsString();
+        String taskId = objectMapper.readTree(evaluateResponse).at("/tasks/0/id").asText();
+
+        cancel(taskId)
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id", is(taskId)))
+                .andExpect(jsonPath("$.status", is("CANCELLED")));
+
+        mockMvc.perform(get("/replenishment/tasks"))
+                .andExpect(jsonPath("$[?(@.id=='" + taskId + "')].status", contains("CANCELLED")));
+
+        // No stock movement at all: no StockMove for this task, and RSV-03's stock is unchanged.
+        mockMvc.perform(get("/stock/moves").param("relatedTaskId", taskId))
+                .andExpect(jsonPath("$", empty()));
+        mockMvc.perform(get("/stock").param("sku", "SKU-300").param("location", "RSV-03"))
+                .andExpect(jsonPath("$[0].quantity", is(70)));
     }
 }

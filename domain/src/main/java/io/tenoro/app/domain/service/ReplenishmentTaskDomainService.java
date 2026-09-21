@@ -9,6 +9,7 @@ import io.tenoro.app.domain.model.ReplenishmentRule;
 import io.tenoro.app.domain.model.ReplenishmentTask;
 import io.tenoro.app.domain.model.ReplenishmentTaskStatus;
 import io.tenoro.app.domain.port.inbound.ReplenishmentTaskService;
+import io.tenoro.app.domain.port.inbound.StockService;
 import io.tenoro.app.domain.port.outbound.InventoryRepository;
 import io.tenoro.app.domain.port.outbound.LocationRepository;
 import io.tenoro.app.domain.port.outbound.ReplenishmentRuleRepository;
@@ -19,11 +20,11 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Domain service implementation for ReplenishmentTask evaluation/generation and listing (docs/SRS.md
- * §3.5, FR-TSK-01/02).
+ * Domain service implementation for ReplenishmentTask evaluation/generation, listing and lifecycle
+ * transitions (docs/SRS.md §3.5, §3.6, FR-TSK-01..04).
  *
- * confirm/cancel (FR-TSK-03/04, docs/ARCHITECTURE.md AD-03) are a later task and deliberately not
- * implemented here — this service has no dependency on StockService yet.
+ * confirm(id) composes StockService.moveStock rather than duplicating its atomicity logic
+ * (docs/ARCHITECTURE.md AD-03) — the only reason this service depends on StockService at all.
  */
 public class ReplenishmentTaskDomainService implements ReplenishmentTaskService {
 
@@ -31,15 +32,18 @@ public class ReplenishmentTaskDomainService implements ReplenishmentTaskService 
     private final ReplenishmentRuleRepository replenishmentRuleRepository;
     private final InventoryRepository inventoryRepository;
     private final LocationRepository locationRepository;
+    private final StockService stockService;
 
     public ReplenishmentTaskDomainService(ReplenishmentTaskRepository replenishmentTaskRepository,
                                            ReplenishmentRuleRepository replenishmentRuleRepository,
                                            InventoryRepository inventoryRepository,
-                                           LocationRepository locationRepository) {
+                                           LocationRepository locationRepository,
+                                           StockService stockService) {
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.replenishmentRuleRepository = replenishmentRuleRepository;
         this.inventoryRepository = inventoryRepository;
         this.locationRepository = locationRepository;
+        this.stockService = stockService;
     }
 
     @Override
@@ -126,6 +130,33 @@ public class ReplenishmentTaskDomainService implements ReplenishmentTaskService 
     @Override
     public List<ReplenishmentTask> findAll() {
         return replenishmentTaskRepository.findAll();
+    }
+
+    @Override
+    public ReplenishmentTask confirm(String id) {
+        ReplenishmentTask task = replenishmentTaskRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("ReplenishmentTask with id '" + id + "' does not exist"));
+
+        // task.confirmed() is pure (no I/O) and checked BEFORE the stock move (docs/ARCHITECTURE.md
+        // AD-03, §3.6): a non-OPEN task fails fast with 409 (BR-08) without ever attempting a move.
+        ReplenishmentTask confirmedTask = task.confirmed();
+
+        // BR-09: reuses StockService.moveStock rather than duplicating AD-02's atomic debit/credit
+        // logic. relatedTaskId links the resulting StockMove back to this task (BR-10, D14). If this
+        // throws (D6 — insufficient stock at the source), it propagates unchanged and nothing below is
+        // reached, so the task is never saved and remains OPEN in the repository.
+        stockService.moveStock(task.getSku(), task.getFromLocation(), task.getToLocation(), task.getQuantity(), task.getId());
+
+        return replenishmentTaskRepository.save(confirmedTask);
+    }
+
+    @Override
+    public ReplenishmentTask cancel(String id) {
+        ReplenishmentTask task = replenishmentTaskRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("ReplenishmentTask with id '" + id + "' does not exist"));
+
+        // No stock movement (FR-TSK-04) — task.cancelled() throws ConflictException if not OPEN (BR-08).
+        return replenishmentTaskRepository.save(task.cancelled());
     }
 
     /**

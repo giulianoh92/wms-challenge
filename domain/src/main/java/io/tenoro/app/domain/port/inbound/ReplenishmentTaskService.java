@@ -6,10 +6,8 @@ import io.tenoro.app.domain.model.ReplenishmentTask;
 import java.util.List;
 
 /**
- * Inbound port (Use Case) for ReplenishmentTask evaluation/generation and listing (docs/SRS.md FR-TSK-01/02).
- *
- * confirm/cancel (FR-TSK-03/04) are a later task (docs/ARCHITECTURE.md AD-03) and are deliberately not
- * part of this port yet.
+ * Inbound port (Use Case) for ReplenishmentTask evaluation/generation, listing and lifecycle
+ * transitions (docs/SRS.md FR-TSK-01..04).
  */
 public interface ReplenishmentTaskService {
 
@@ -33,4 +31,29 @@ public interface ReplenishmentTaskService {
      * @return a list of all replenishment tasks
      */
     List<ReplenishmentTask> findAll();
+
+    /**
+     * Confirms an OPEN replenishment task (docs/SRS.md FR-TSK-03, §3.6): transitions it to CONFIRMED
+     * and executes the underlying stock move (BR-09) from fromLocation to toLocation, for quantity,
+     * with this task's id as the move's relatedTaskId (BR-10).
+     *
+     * @param id the id of the task to confirm
+     * @return the confirmed task
+     * @throws io.tenoro.app.domain.exception.NotFoundException if no task exists with this id
+     * @throws io.tenoro.app.domain.exception.ConflictException if the task is not currently OPEN
+     *         (BR-08), or if the underlying stock move fails due to insufficient stock at the source
+     *         (D6) — in that case the task remains OPEN
+     */
+    ReplenishmentTask confirm(String id);
+
+    /**
+     * Cancels an OPEN replenishment task (docs/SRS.md FR-TSK-04): transitions it to CANCELLED. No
+     * stock move is performed.
+     *
+     * @param id the id of the task to cancel
+     * @return the cancelled task
+     * @throws io.tenoro.app.domain.exception.NotFoundException if no task exists with this id
+     * @throws io.tenoro.app.domain.exception.ConflictException if the task is not currently OPEN (BR-08)
+     */
+    ReplenishmentTask cancel(String id);
 }
