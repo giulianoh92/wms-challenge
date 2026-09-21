@@ -1,0 +1,1473 @@
+{
+	"info": {
+		"_postman_id": "d822bf17-e67c-495a-905a-8688a083995c",
+		"name": "WMS Replenishment Module",
+		"description": "End-to-end circuit for the WMS replenishment module (SPECS.md). Run the whole collection top to bottom against a freshly started app (./run.sh) with the Collection Runner, or step through folders manually in order — later requests depend on state created by earlier ones within the same folder.\n\nFolders 2-4 use dedicated fixtures (PICK-99 / RSV-99 / SKU-900) so they never disturb the seeded SKU-100/SKU-200/SKU-300 scenario that folder 5 exercises. Folder 5 replays the exact walkthrough from README.md / docs/SRS.md §7, including the D4 idempotency check and the D6 guarantee that a task failing to confirm (insufficient stock) stays OPEN.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "baseUrl", "value": "http://localhost:8080/api/templates", "type": "string" },
+		{ "key": "confirmTaskId", "value": "", "type": "string" },
+		{ "key": "secondOpenTaskId", "value": "", "type": "string" },
+		{ "key": "cancelTaskId", "value": "", "type": "string" }
+	],
+	"item": [
+		{
+			"name": "1. Seed Verification",
+			"item": [
+				{
+					"name": "List Locations (seed)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const locations = pm.response.json();",
+									"pm.test(\"Seed contains exactly 5 locations\", function () {",
+									"    pm.expect(locations.length).to.eql(5);",
+									"});",
+									"",
+									"const codes = locations.map(l => l.code).sort();",
+									"pm.test(\"Seed locations match SPECS.md\", function () {",
+									"    pm.expect(codes).to.eql([\"PICK-01\", \"PICK-02\", \"RSV-01\", \"RSV-02\", \"RSV-03\"]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/locations",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "locations" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Stock (seed)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const stock = pm.response.json();",
+									"pm.test(\"Seed contains exactly 6 stock records\", function () {",
+									"    pm.expect(stock.length).to.eql(6);",
+									"});",
+									"",
+									"function qty(sku, locationCode) {",
+									"    const item = stock.find(i => i.sku === sku && i.locationCode === locationCode);",
+									"    return item ? item.quantity : undefined;",
+									"}",
+									"",
+									"pm.test(\"Seed quantities match SPECS.md\", function () {",
+									"    pm.expect(qty(\"SKU-100\", \"PICK-01\")).to.eql(5);",
+									"    pm.expect(qty(\"SKU-200\", \"PICK-01\")).to.eql(40);",
+									"    pm.expect(qty(\"SKU-300\", \"PICK-02\")).to.eql(10);",
+									"    pm.expect(qty(\"SKU-100\", \"RSV-01\")).to.eql(60);",
+									"    pm.expect(qty(\"SKU-100\", \"RSV-02\")).to.eql(50);",
+									"    pm.expect(qty(\"SKU-300\", \"RSV-03\")).to.eql(70);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Locations",
+			"item": [
+				{
+					"name": "Create Location - Picking (fixture)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Location created with requested code and type\", function () {",
+									"    pm.expect(body.code).to.eql(\"PICK-99\");",
+									"    pm.expect(body.type).to.eql(\"PICKING\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"PICK-99\",\n    \"type\": \"PICKING\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/locations",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "locations" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Location - Reserve (fixture)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Location created with requested code and type\", function () {",
+									"    pm.expect(body.code).to.eql(\"RSV-99\");",
+									"    pm.expect(body.type).to.eql(\"RESERVE\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"RSV-99\",\n    \"type\": \"RESERVE\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/locations",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "locations" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Location - Duplicate Code (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 409 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"PICK-99\",\n    \"type\": \"PICKING\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/locations",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "locations" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Location - Invalid Type (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(400);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"PICK-98\",\n    \"type\": \"INVALID\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/locations",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "locations" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Locations (includes fixtures)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const codes = pm.response.json().map(l => l.code);",
+									"pm.test(\"Response includes the fixtures just created\", function () {",
+									"    pm.expect(codes).to.include(\"PICK-99\");",
+									"    pm.expect(codes).to.include(\"RSV-99\");",
+									"});",
+									"",
+									"pm.test(\"The rejected invalid-type location was never created\", function () {",
+									"    pm.expect(codes).to.not.include(\"PICK-98\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/locations",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "locations" ]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Stock",
+			"item": [
+				{
+					"name": "Load Stock - Reserve fixture",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Stock loaded with requested quantity\", function () {",
+									"    pm.expect(body.sku).to.eql(\"SKU-900\");",
+									"    pm.expect(body.locationCode).to.eql(\"RSV-99\");",
+									"    pm.expect(body.quantity).to.eql(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"RSV-99\",\n    \"quantity\": 200\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Load Stock - Picking fixture",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Stock loaded with requested quantity\", function () {",
+									"    pm.expect(body.sku).to.eql(\"SKU-900\");",
+									"    pm.expect(body.locationCode).to.eql(\"PICK-99\");",
+									"    pm.expect(body.quantity).to.eql(5);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"PICK-99\",\n    \"quantity\": 5\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Load Stock - Unknown Location (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(404);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"NOPE-01\",\n    \"quantity\": 10\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Load Stock - Negative Quantity (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(400);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"PICK-99\",\n    \"quantity\": -1\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Query Stock by SKU",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const stock = pm.response.json();",
+									"pm.test(\"Returns both SKU-900 records\", function () {",
+									"    pm.expect(stock.length).to.eql(2);",
+									"    stock.forEach(item => pm.expect(item.sku).to.eql(\"SKU-900\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock?sku=SKU-900",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ],
+							"query": [ { "key": "sku", "value": "SKU-900" } ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Query Stock by Location",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const stock = pm.response.json();",
+									"pm.test(\"Returns only PICK-99 records\", function () {",
+									"    pm.expect(stock.length).to.be.at.least(1);",
+									"    stock.forEach(item => pm.expect(item.locationCode).to.eql(\"PICK-99\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock?location=PICK-99",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ],
+							"query": [ { "key": "location", "value": "PICK-99" } ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Move Stock - Reserve to Picking",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Move recorded with a direct move (no related task)\", function () {",
+									"    pm.expect(body.fromLocation).to.eql(\"RSV-99\");",
+									"    pm.expect(body.toLocation).to.eql(\"PICK-99\");",
+									"    pm.expect(body.quantity).to.eql(50);",
+									"    pm.expect(body.relatedTaskId).to.be.null;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"from\": \"RSV-99\",\n    \"to\": \"PICK-99\",\n    \"quantity\": 50\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock/move",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock", "move" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Move Stock - Insufficient Stock (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 409 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"from\": \"RSV-99\",\n    \"to\": \"PICK-99\",\n    \"quantity\": 999999\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock/move",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock", "move" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Move Stock - Unknown Location (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(404);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"from\": \"NOPE-01\",\n    \"to\": \"PICK-99\",\n    \"quantity\": 1\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock/move",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock", "move" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Query Stock Move History",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const moves = pm.response.json();",
+									"pm.test(\"Contains the direct move just made, untied to any task\", function () {",
+									"    const move = moves.find(m => m.fromLocation === \"RSV-99\" && m.toLocation === \"PICK-99\" && m.quantity === 50);",
+									"    pm.expect(move, \"move not found in history\").to.not.be.undefined;",
+									"    pm.expect(move.relatedTaskId).to.be.null;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock/moves?sku=SKU-900",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock", "moves" ],
+							"query": [ { "key": "sku", "value": "SKU-900" } ]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Replenishment Rules",
+			"item": [
+				{
+					"name": "Create Rule (fixture)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Rule created with the requested thresholds\", function () {",
+									"    pm.expect(body.sku).to.eql(\"SKU-900\");",
+									"    pm.expect(body.locationCode).to.eql(\"PICK-99\");",
+									"    pm.expect(body.min).to.eql(10);",
+									"    pm.expect(body.max).to.eql(100);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"PICK-99\",\n    \"min\": 10,\n    \"max\": 100\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment-rules",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment-rules" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Rule - Wrong Location Type (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(400);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"RSV-99\",\n    \"min\": 10,\n    \"max\": 100\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment-rules",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment-rules" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Rule - Missing Location (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(404);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"NOPE-01\",\n    \"min\": 10,\n    \"max\": 100\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment-rules",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment-rules" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Rule - Duplicate (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 409 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-900\",\n    \"locationCode\": \"PICK-99\",\n    \"min\": 10,\n    \"max\": 100\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment-rules",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment-rules" ]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Replenishment Tasks - Full Circuit",
+			"item": [
+				{
+					"name": "Evaluate SKU-100 @ PICK-01 (full replenishment, 2 sources)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Needs replenishment and reserve fully covers it (60 + 50 >= 95)\", function () {",
+									"    pm.expect(body.replenishmentNeeded).to.be.true;",
+									"    pm.expect(body.fullyReplenished).to.be.true;",
+									"    pm.expect(body.tasks.length).to.eql(2);",
+									"});",
+									"",
+									"pm.test(\"Greedy descending selection: RSV-01 (60) before RSV-02 (35 of the remaining 35 needed)\", function () {",
+									"    pm.expect(body.tasks[0].fromLocation).to.eql(\"RSV-01\");",
+									"    pm.expect(body.tasks[0].quantity).to.eql(60);",
+									"    pm.expect(body.tasks[1].fromLocation).to.eql(\"RSV-02\");",
+									"    pm.expect(body.tasks[1].quantity).to.eql(35);",
+									"    body.tasks.forEach(t => {",
+									"        pm.expect(t.toLocation).to.eql(\"PICK-01\");",
+									"        pm.expect(t.status).to.eql(\"OPEN\");",
+									"    });",
+									"});",
+									"",
+									"pm.collectionVariables.set(\"confirmTaskId\", body.tasks[0].id);",
+									"pm.collectionVariables.set(\"secondOpenTaskId\", body.tasks[1].id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-100\",\n    \"locationCode\": \"PICK-01\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Evaluate SKU-300 @ PICK-02 (partial replenishment)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Needs replenishment but reserve falls short (only 70 of 110 needed)\", function () {",
+									"    pm.expect(body.replenishmentNeeded).to.be.true;",
+									"    pm.expect(body.fullyReplenished).to.be.false;",
+									"    pm.expect(body.tasks.length).to.eql(1);",
+									"    pm.expect(body.tasks[0].fromLocation).to.eql(\"RSV-03\");",
+									"    pm.expect(body.tasks[0].toLocation).to.eql(\"PICK-02\");",
+									"    pm.expect(body.tasks[0].quantity).to.eql(70);",
+									"    pm.expect(body.tasks[0].status).to.eql(\"OPEN\");",
+									"});",
+									"",
+									"pm.collectionVariables.set(\"cancelTaskId\", body.tasks[0].id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-300\",\n    \"locationCode\": \"PICK-02\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Evaluate SKU-200 @ PICK-01 (already above min, no task)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Stock (40) already at or above min (10): no replenishment, no task\", function () {",
+									"    pm.expect(body.replenishmentNeeded).to.be.false;",
+									"    pm.expect(body.fullyReplenished).to.be.false;",
+									"    pm.expect(body.tasks.length).to.eql(0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-200\",\n    \"locationCode\": \"PICK-01\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Evaluate SKU-100 @ PICK-01 - Idempotent Re-run (D4)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Returns the same still-OPEN tasks instead of creating duplicates\", function () {",
+									"    pm.expect(body.tasks.length).to.eql(2);",
+									"    const ids = body.tasks.map(t => t.id);",
+									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"confirmTaskId\"));",
+									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"secondOpenTaskId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-100\",\n    \"locationCode\": \"PICK-01\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Evaluate - Wrong Location Type (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 400 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(400);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-100\",\n    \"locationCode\": \"RSV-01\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Evaluate - Missing Rule (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(404);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-999\",\n    \"locationCode\": \"PICK-99\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Replenishment Tasks",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const ids = pm.response.json().map(t => t.id);",
+									"pm.test(\"Includes every OPEN task created so far\", function () {",
+									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"confirmTaskId\"));",
+									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"secondOpenTaskId\"));",
+									"    pm.expect(ids).to.include(pm.collectionVariables.get(\"cancelTaskId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Task transitions OPEN -> CONFIRMED\", function () {",
+									"    pm.expect(body.id).to.eql(pm.collectionVariables.get(\"confirmTaskId\"));",
+									"    pm.expect(body.status).to.eql(\"CONFIRMED\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks/{{confirmTaskId}}/confirm",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks", "{{confirmTaskId}}", "confirm" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Stock After Confirm",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const stock = pm.response.json();",
+									"function qty(locationCode) {",
+									"    const item = stock.find(i => i.locationCode === locationCode);",
+									"    return item ? item.quantity : 0;",
+									"}",
+									"",
+									"pm.test(\"60 units moved from RSV-01 (60 -> 0) to PICK-01 (5 -> 65)\", function () {",
+									"    pm.expect(qty(\"RSV-01\")).to.eql(0);",
+									"    pm.expect(qty(\"PICK-01\")).to.eql(65);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock?sku=SKU-100",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ],
+							"query": [ { "key": "sku", "value": "SKU-100" } ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Stock Move Traceability",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const moves = pm.response.json();",
+									"pm.test(\"Confirming the task recorded exactly one traceable StockMove\", function () {",
+									"    pm.expect(moves.length).to.eql(1);",
+									"    pm.expect(moves[0].fromLocation).to.eql(\"RSV-01\");",
+									"    pm.expect(moves[0].toLocation).to.eql(\"PICK-01\");",
+									"    pm.expect(moves[0].quantity).to.eql(60);",
+									"    pm.expect(moves[0].relatedTaskId).to.eql(pm.collectionVariables.get(\"confirmTaskId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock/moves?relatedTaskId={{confirmTaskId}}",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock", "moves" ],
+							"query": [ { "key": "relatedTaskId", "value": "{{confirmTaskId}}" } ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Task - Already Confirmed (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 409 and a clear message (terminal state)\", function () {",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks/{{confirmTaskId}}/confirm",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks", "{{confirmTaskId}}", "confirm" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Task - Not Found (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 404 and a clear message\", function () {",
+									"    pm.expect(body.status).to.eql(404);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks/00000000-0000-0000-0000-000000000000/confirm",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks", "00000000-0000-0000-0000-000000000000", "confirm" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Task transitions OPEN -> CANCELLED\", function () {",
+									"    pm.expect(body.id).to.eql(pm.collectionVariables.get(\"cancelTaskId\"));",
+									"    pm.expect(body.status).to.eql(\"CANCELLED\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks/{{cancelTaskId}}/cancel",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks", "{{cancelTaskId}}", "cancel" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Stock Unchanged After Cancel",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const stock = pm.response.json();",
+									"function qty(locationCode) {",
+									"    const item = stock.find(i => i.locationCode === locationCode);",
+									"    return item ? item.quantity : 0;",
+									"}",
+									"",
+									"pm.test(\"Cancelling never moves stock: PICK-02 and RSV-03 stay at seed values\", function () {",
+									"    pm.expect(qty(\"PICK-02\")).to.eql(10);",
+									"    pm.expect(qty(\"RSV-03\")).to.eql(70);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stock?sku=SKU-300",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock" ],
+							"query": [ { "key": "sku", "value": "SKU-300" } ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Task - Already Cancelled (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 409 and a clear message (terminal state)\", function () {",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks/{{cancelTaskId}}/cancel",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks", "{{cancelTaskId}}", "cancel" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Move Stock - Drain RSV-02 (setup for D6)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"RSV-02 drained to zero, ahead of confirming the second open task\", function () {",
+									"    pm.expect(body.fromLocation).to.eql(\"RSV-02\");",
+									"    pm.expect(body.quantity).to.eql(50);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [ { "key": "Content-Type", "value": "application/json" } ],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sku\": \"SKU-100\",\n    \"from\": \"RSV-02\",\n    \"to\": \"PICK-02\",\n    \"quantity\": 50\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stock/move",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "stock", "move" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Task - Insufficient Stock at Source (409, D6)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.test(\"Error response has status 409 and a clear message (source now has 0, task needs 35)\", function () {",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.be.a(\"string\").and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks/{{secondOpenTaskId}}/confirm",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks", "{{secondOpenTaskId}}", "confirm" ]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Task Remains OPEN After Failed Confirm (D6 proof)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const tasks = pm.response.json();",
+									"const task = tasks.find(t => t.id === pm.collectionVariables.get(\"secondOpenTaskId\"));",
+									"pm.test(\"A move that fails for insufficient stock never touches the task: it stays OPEN, not partially confirmed\", function () {",
+									"    pm.expect(task, \"task not found\").to.not.be.undefined;",
+									"    pm.expect(task.status).to.eql(\"OPEN\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/replenishment/tasks",
+							"host": [ "{{baseUrl}}" ],
+							"path": [ "replenishment", "tasks" ]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

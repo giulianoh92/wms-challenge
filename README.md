@@ -113,6 +113,24 @@ curl -s -w "\n%{http_code}\n" -X POST $BASE/stock/move \
   -H "Content-Type: application/json" -d '{"sku":"SKU-100","from":"RSV-01","to":"PICK-01","quantity":999999}'
 ```
 
+## Postman collection
+
+`postman/wms-replenishment.postman_collection.json` (plus `postman/wms-replenishment.postman_environment.json`
+for the `baseUrl` variable) covers the full circuit: all 10 required endpoints, the seed-data walkthrough
+above, and the negative paths (400/404/409) for every business rule. Import both files into Postman, select
+the "WMS Replenishment - Local" environment, and run the whole collection with the Collection Runner against
+a freshly started app — later requests depend on state created earlier in the same folder, so run it top to
+bottom. Folders 2-4 use dedicated fixtures (`PICK-99`/`RSV-99`/`SKU-900`) so they never disturb the seeded
+`SKU-100`/`SKU-200`/`SKU-300` scenario that folder 5 exercises, including the D4 idempotency check and the D6
+guarantee that a task failing to confirm (insufficient stock) stays OPEN.
+
+You can also run it headless with [Newman](https://github.com/postmanlabs/newman):
+
+```bash
+npx newman run postman/wms-replenishment.postman_collection.json \
+  -e postman/wms-replenishment.postman_environment.json
+```
+
 ## More detail
 
 - Requirements, domain model, and business rules: [`docs/SRS.md`](docs/SRS.md)
