@@ -7,6 +7,24 @@ inventario, reglas de reposición y tareas de reposición.
 > El enunciado completo del challenge está en [`SPECS.md`](SPECS.md); los requerimientos y el diseño en
 > detalle viven en [`docs/SRS.md`](docs/SRS.md) y [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+## Proceso y metodología
+
+Antes de escribir código se modeló el dominio en [`docs/SRS.md`](docs/SRS.md): las entidades (`Location`,
+`InventoryItem`, `ReplenishmentRule`, `ReplenishmentTask`, `StockMove`), las reglas de negocio y las
+decisiones de diseño que cubren los puntos que [`SPECS.md`](SPECS.md) dejaba abiertos — por ejemplo, cómo
+priorizar entre varias ubicaciones de reserva o qué pasa con una tarea que falla al confirmarse por falta de
+stock.
+
+Con el SRS cerrado se hizo el diseño arquitectónico detallado en
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), siguiendo las convenciones de código que ya planteaba el
+template original y que quedaron documentadas en [`CLAUDE.md`](CLAUDE.md) al inicializar el proyecto con
+Claude Code (arquitectura hexagonal por módulo, manejo de errores sin `@ControllerAdvice`, wiring manual de
+beans, etc.).
+
+La implementación se hizo siguiendo ese mismo proceso — Organic Driven Development con TDD como método de
+trabajo por defecto — con el conjunto de herramientas del ecosistema
+[gentle-ai](https://github.com/Gentleman-Programming/gentle-ai) para Claude Code.
+
 ---
 
 ## 1. Instalar Java 24
